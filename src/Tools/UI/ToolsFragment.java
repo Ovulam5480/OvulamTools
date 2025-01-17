@@ -142,7 +142,6 @@ public class ToolsFragment {
             draggable.replaceImage(image);
         });
 
-        //todo 保存位置拖动
         draggable.dragged((x, y) -> {
             if (drag) {
                 int deltaX = (int) Mathf.clamp(Core.input.deltaX(), -full.x, Core.graphics.getWidth() - (optionTable.getWidth() + full.x));

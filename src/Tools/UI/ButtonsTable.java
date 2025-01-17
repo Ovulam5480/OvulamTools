@@ -86,7 +86,7 @@ public class ButtonsTable {
                         float speed = player.speed() * 1.2f;
 
                         if (mobile) {
-                            //todo 待测试
+                            //todo 待测试?
                             MobileInput input = (MobileInput) control.input;
 
                             movement.set(input.movement.x, input.movement.y).nor().scl(speed);
