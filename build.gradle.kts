@@ -129,6 +129,7 @@ project(":"){
 
             files(layout.projectDirectory.dir("assets")),
             layout.projectDirectory.file("icon.png"),
+            layout.projectDirectory.file("飙车示例.json"),
             meta
         )
 
