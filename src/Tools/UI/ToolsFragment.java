@@ -120,6 +120,7 @@ public class ToolsFragment {
                 full.x = Core.settings.getFloat("工具表X");
                 full.y = Core.settings.getFloat("工具表Y");
             }
+
         });
 
         Events.on(EventType.TapEvent.class, e -> {

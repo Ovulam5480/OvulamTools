@@ -14,7 +14,7 @@ main: "Tools.Tools"
 description: "用于显示子弹溅射范围或者单位坠落伤害半径的辅助模组(起码以前是)"
 
 #the mod version
-version: 0.6.1
+version: 0.6.2
 
 #the minimum game build required to run this mod
 minGameVersion: 146

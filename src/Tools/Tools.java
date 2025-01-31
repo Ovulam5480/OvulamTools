@@ -3,54 +3,27 @@ package Tools;
 import Tools.UI.ToolsFragment;
 import arc.Core;
 import arc.Events;
-import arc.audio.Music;
 import arc.files.Fi;
-import arc.input.KeyCode;
 import arc.math.Mathf;
-import arc.struct.Seq;
-import arc.struct.StringMap;
+import arc.scene.ui.layout.WidgetGroup;
 import arc.util.Log;
-import arc.util.Time;
-import arc.util.io.CounterInputStream;
 import mindustry.Vars;
-import mindustry.content.Blocks;
-import mindustry.content.SectorPresets;
 import mindustry.content.UnitTypes;
-import mindustry.core.Version;
-import mindustry.editor.MapEditor;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
-import mindustry.game.Schematic;
-import mindustry.game.Schematics;
-import mindustry.game.Team;
-import mindustry.gen.*;
-import mindustry.input.Binding;
-import mindustry.io.MapIO;
-import mindustry.io.SaveIO;
-import mindustry.io.SaveVersion;
-import mindustry.maps.Map;
+import mindustry.gen.Unit;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
 import mindustry.type.StatusEffect;
-import mindustry.type.UnitType;
-import mindustry.ui.dialogs.EditorMapsDialog;
-import mindustry.ui.dialogs.MapListDialog;
-import mindustry.ui.fragments.HudFragment;
-import mindustry.world.blocks.defense.turrets.ItemTurret;
-import mindustry.world.blocks.storage.CoreBlock;
 
-
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.zip.InflaterInputStream;
-
-import static mindustry.Vars.*;
+import static mindustry.Vars.mods;
+import static mindustry.Vars.ui;
 
 public class Tools extends Mod{
 
     @Override
     public void init(){
+        ui.settings.graphics.checkPref("详细溅射范围", false);
         putSetting("溅射范围透明度");
         putSetting("破片范围透明度");
         putSetting("闪电路径透明度");
@@ -75,7 +48,10 @@ public class Tools extends Mod{
         //ui.settings.game.checkPref("重生或附身其他单位时保存建筑序列", true);
 
         new ShowShowSheRange();
-        new ToolsFragment(ui.hudGroup);
+
+        WidgetGroup group = new WidgetGroup();
+        ui.hudGroup.addChild(group);
+        new ToolsFragment(group);
 
         biabiabia();
 
@@ -89,14 +65,11 @@ public class Tools extends Mod{
             }
         }
 
+        Mods.LoadedMod mod = mods.getMod(this.getClass());
+        Log.info(mod.main != null && !mod.meta.hidden);
     }
 
     public void sdawda(){
-        //Vars.ui.join.show()
-        //SaverVars
-//        Events.run(EventType.Trigger.update, () -> {
-//            Log.info(Vars.control.input.mode);
-//        });
     }
 
     public void putSetting(String name){
@@ -113,7 +86,6 @@ public class Tools extends Mod{
             "一键自动飙车",
             "原版代码搬运工",
             "这个模组被EOD的病毒传染了!",
-           // "手机在自动玩MDT",
             "按F8自动下载原神",
             "[gray]9527[scarlet]飙车[brown]大奋[violet]正[acid]版[yellow]授[red]权",
             "不允许使用蓝图(库)跟我快捷蓝图表有什么关系"

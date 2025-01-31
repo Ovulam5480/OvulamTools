@@ -3,6 +3,8 @@ package Tools.UI;
 import Tools.PublicStaticVoids;
 import arc.Core;
 import arc.Events;
+import arc.func.Boolc;
+import arc.func.Boolf;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
@@ -42,14 +44,20 @@ import mindustry.graphics.Pal;
 import mindustry.input.Binding;
 import mindustry.input.DesktopInput;
 import mindustry.input.MobileInput;
+import mindustry.logic.LAssembler;
+import mindustry.logic.LExecutor;
+import mindustry.logic.LUnitControl;
+import mindustry.logic.LogicDialog;
 import mindustry.type.Item;
 import mindustry.type.UnitType;
 import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
 import mindustry.world.Block;
 import mindustry.world.Tile;
+import mindustry.world.blocks.ConstructBlock;
 import mindustry.world.blocks.environment.OreBlock;
 import mindustry.world.blocks.environment.Prop;
+import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.storage.CoreBlock;
 
 import static arc.Core.camera;
@@ -71,14 +79,16 @@ public class ButtonsTable {
                     Events.run(EventType.Trigger.draw, () -> {
                         if (checked) {
                             Draw.z(Layer.fogOfWar + 1f);
-                            Drawf.dashRect(Pal.remove, world.getQuadBounds(Tmp.r1));
+                            if (state.rules.limitMapArea)
+                                Tmp.r1.set(state.rules.limitX * tilesize, state.rules.limitY * tilesize, state.rules.limitWidth * tilesize, state.rules.limitHeight * tilesize).grow(finalWorldBounds * 2);
+                            else world.getQuadBounds(Tmp.r1);
+
+                            Drawf.dashRect(Pal.remove, Tmp.r1);
                             Draw.reset();
                         }
                     });
 
                     update = () -> {
-                        if (Core.scene.hasField()) return;
-
                         Unit player = Vars.player.unit();
                         if (player == null) return;
 
@@ -90,13 +100,12 @@ public class ButtonsTable {
                             MobileInput input = (MobileInput) control.input;
 
                             movement.set(input.movement.x, input.movement.y).nor().scl(speed);
-                        } else {
+                        } else if (!Core.scene.hasField()) {
                             float xa = Core.input.axis(Binding.move_x);
                             float ya = Core.input.axis(Binding.move_y);
 
                             movement.set(xa, ya).nor().scl(speed);
                         }
-
                         pos.add(movement);
 
                         if (player.canPass(World.toTile(pos.x), World.toTile(pos.y))) {
@@ -126,13 +135,45 @@ public class ButtonsTable {
             }, null),
 
             new FunctionButton("拆除地图上所有的废墟", Icon.spray, () -> {
-                world.tiles.eachTile(tile -> {
-                    Building building = tile.build;
-                    if (building != null && building.team == Team.derelict) {
-                        player.unit().plans.add(new BuildPlan(tile.x, tile.y));
-                    }
-                });
+                state.teams.get(Team.derelict).buildings.each(b -> player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY())));
             }, null),
+
+            new FunctionButton("警告场上是否放置病毒逻辑, 拆除地图上所有病毒逻辑和非玩家建造的潜在病毒逻辑", Icon.spray, () -> {}, null){
+                @Override
+                public void on() {
+                    Boolf<LogicBlock.LogicBuild> isVirus = lb -> {
+                        for (LExecutor.LInstruction instruction : LAssembler.assemble(lb.code, false).instructions) {
+                            if(instruction instanceof LExecutor.UnitControlI uci && uci.type == LUnitControl.build){
+                                return true;
+                            }
+                        }
+                        return false;
+                    };
+
+                    Events.on(EventType.BlockBuildEndEvent.class, e -> {
+                        if(!e.breaking)return;
+                        if(e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus.get(lb)){
+                            if(e.unit.isPlayer())Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于"+ "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
+                        }
+//                        if(e.tile.block() == Blocks.thoriumReactor && ){
+//                            Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于"+ "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
+//                        }
+                    });
+
+                    check = () -> {
+                        state.teams.get(player.team()).buildings.each(b -> {
+                            if(b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
+                                    && cb.lastConfig instanceof LogicBlock.LogicBuild lb && isVirus.get(lb)){
+
+                                player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
+                            } else if((b instanceof LogicBlock.LogicBuild lb && isVirus.get(lb))){
+                                player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
+                                Fx.ripple.at(b.tileX(), b.tileY(), 40, Pal.heal);
+                            }
+                        });
+                    };
+                }
+            },
 
             new FunctionButton("显示屏幕内地图方格燃烧性", new TextureRegionDrawable(StatusEffects.burning.fullIcon), () -> {
             }) {
@@ -225,14 +266,15 @@ public class ButtonsTable {
                                 unit.mineTile = null;
                             }
 
-                            if (unit.stack.amount > 0 && unit.within(core, mineTransferRange)) {
-                                Call.transferItemTo(unit, unit.stack.item, unit.stack.amount, unit.x, unit.y, core);
-                            }
+                        }
+
+                        if (unit.stack.amount > 0 && unit.within(core, mineTransferRange)) {
+                            Call.transferItemTo(unit, unit.stack.item, unit.stack.amount, unit.x, unit.y, core);
                         }
 
                         if (unit.stack.amount == 0) {
                             for (Item item : ores.keys()) {
-                                if(mine(item, core, unit))break;
+                                if (mine(item, core, unit)) break;
                             }
                         } else {
                             mine(unit.stack.item, core, unit);
@@ -241,7 +283,7 @@ public class ButtonsTable {
                     };
                 }
 
-                public boolean mine(Item item, CoreBlock.CoreBuild core, Unit unit){
+                public boolean mine(Item item, CoreBlock.CoreBuild core, Unit unit) {
                     if (core.items.get(item) < Core.settings.getInt("自动挖矿阈值") && item.buildable) {
                         Tile ore = ores.get(item);
                         if (ore != null) {

@@ -4,8 +4,11 @@ import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
 import arc.scene.style.TextureRegionDrawable;
+import arc.scene.ui.Button;
 import arc.scene.ui.ButtonGroup;
 import arc.scene.ui.ImageButton;
+import arc.scene.ui.TextButton;
+import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
 import arc.util.Time;
@@ -38,7 +41,7 @@ import static mindustry.Vars.iconMed;
 public class ShortcutsSchematicsTable {
     public boolean coverMode;
     int currentCategory = 0;
-    boolean clearMode, syncMode;
+    boolean clearMode, syncMode, editMode;
     Table schematicsTable = new Table(Tex.pane).margin(10),
             categoryTable = new Table(Tex.pane).margin(10),
             schematicsAndCategoryTable = new Table();
@@ -74,11 +77,9 @@ public class ShortcutsSchematicsTable {
         schematicsAndCategoryTable.add(categoryTable).growY();
 
         schematicsAndCategoryTable.table(Tex.pane, t -> {
-            ButtonGroup<ImageButton> g = new ButtonGroup<>();
-            g.setMinCheckCount(0);
-
-            t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).tooltip("按下后点击各按钮来更新为蓝图库内同名蓝图").group(g).row();
-            t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).tooltip("按下后点击各按钮来删除配置").group(g).row();
+            t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).tooltip("按下后点击删除蓝图或者分类的提示").row();
+            t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).tooltip("按下后点击更新为蓝图库内同名蓝图").row();
+            t.button(Icon.edit, Styles.clearNoneTogglei, () -> editMode = !editMode).size(46).tooltip("按下后点击编辑蓝图名称, 或编辑分类的提示").row();
             t.button(Icon.wrench, Styles.clearNoneTogglei, () -> coverMode = !coverMode).size(46).tooltip("覆盖模式, 将会拆除建造列表下方阻挡的建筑, 不局限于快捷蓝图").row();
             t.add().growY();
 
@@ -177,7 +178,13 @@ public class ShortcutsSchematicsTable {
                             ui.showInfoToast("蓝图已更新", 3f);
                         }
                         rebuild();
-                    } else {
+                    }else if(editMode){
+                        Vars.ui.showTextInput("修改蓝图名称", "@name", "", s -> {
+                            schematic.tags.put("name", s);
+                            Core.settings.put("SchematicsFragment" + "-" + currentCategory + "-" + j, schematics.writeBase64(schematic));
+                            rebuild();
+                        });
+                    }else {
                         control.input.useSchematic(schematic);
                         if(coverMode) coverPlan = schematic;
                     }
@@ -269,9 +276,19 @@ public class ShortcutsSchematicsTable {
                 categoryTable.row();
             }
 
-            categoryTable.button(String.valueOf(i + 1), Styles.flatToggleMenut, () -> {
-                currentCategory = index;
-                rebuild();
+            Cell<TextButton> button = categoryTable.button(String.valueOf(i + 1), Styles.flatToggleMenut, () -> {
+                if (clearMode) {
+                    Core.settings.remove("SchematicsFragment" + "-" + index);
+                    rebuildCat();
+                } else if(editMode){
+                    ui.showTextInput("修改类别-" + index + " 名称", "@name", "", s -> {
+                        Core.settings.put("SchematicsFragment" + "-" + index, s);
+                        rebuildCat();
+                    });
+                } else {
+                    currentCategory = index;
+                    rebuild();
+                }
             }).size(46).group(group).update(b -> {
                 b.setChecked(currentCategory == index);
 
@@ -280,6 +297,10 @@ public class ShortcutsSchematicsTable {
                     rebuild();
                 }
             });
+
+            if(Core.settings.has("SchematicsFragment" + "-" + index)){
+                button.tooltip(Core.settings.getString("SchematicsFragment" + "-" + index, ""));
+            }
         }
     }
 
