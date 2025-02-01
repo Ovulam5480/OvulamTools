@@ -48,10 +48,7 @@ public class Tools extends Mod{
         //ui.settings.game.checkPref("重生或附身其他单位时保存建筑序列", true);
 
         new ShowShowSheRange();
-
-        WidgetGroup group = new WidgetGroup();
-        ui.hudGroup.addChild(group);
-        new ToolsFragment(group);
+        new ToolsFragment(ui.hudGroup);
 
         biabiabia();
 
