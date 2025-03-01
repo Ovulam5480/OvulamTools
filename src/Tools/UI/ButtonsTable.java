@@ -3,36 +3,22 @@ package Tools.UI;
 import Tools.PublicStaticVoids;
 import arc.Core;
 import arc.Events;
-import arc.func.Boolc;
-import arc.func.Boolf;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Font;
 import arc.math.Mathf;
-import arc.math.geom.Intersector;
-import arc.math.geom.Rect;
-import arc.math.geom.Vec2;
+import arc.math.geom.*;
 import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.layout.Table;
-import arc.struct.FloatSeq;
-import arc.struct.IntSeq;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
-import arc.util.Interval;
-import arc.util.Log;
-import arc.util.Time;
-import arc.util.Tmp;
+import arc.util.*;
 import mindustry.Vars;
-import mindustry.ai.UnitCommand;
-import mindustry.ai.types.MinerAI;
 import mindustry.content.*;
 import mindustry.core.World;
-import mindustry.entities.Damage;
-import mindustry.entities.Effect;
-import mindustry.entities.bullet.BasicBulletType;
 import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
 import mindustry.game.EventType;
@@ -42,12 +28,10 @@ import mindustry.graphics.Drawf;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
 import mindustry.input.Binding;
-import mindustry.input.DesktopInput;
 import mindustry.input.MobileInput;
 import mindustry.logic.LAssembler;
 import mindustry.logic.LExecutor;
 import mindustry.logic.LUnitControl;
-import mindustry.logic.LogicDialog;
 import mindustry.type.Item;
 import mindustry.type.UnitType;
 import mindustry.ui.Fonts;
@@ -55,10 +39,12 @@ import mindustry.ui.Styles;
 import mindustry.world.Block;
 import mindustry.world.Tile;
 import mindustry.world.blocks.ConstructBlock;
-import mindustry.world.blocks.environment.OreBlock;
 import mindustry.world.blocks.environment.Prop;
 import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.payloads.PayloadBlock;
+import mindustry.world.blocks.power.NuclearReactor;
 import mindustry.world.blocks.storage.CoreBlock;
+import mindustry.world.blocks.units.UnitAssembler;
 
 import static arc.Core.camera;
 import static mindustry.Vars.*;
@@ -75,7 +61,7 @@ public class ButtonsTable {
                 final Vec2 movement = new Vec2(), pos = new Vec2();
 
                 @Override
-                public void on() {
+                public void init() {
                     Events.run(EventType.Trigger.draw, () -> {
                         if (checked) {
                             Draw.z(Layer.fogOfWar + 1f);
@@ -124,7 +110,110 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("拆除地图上所有的石头", Icon.eraser, () -> {
+            new FunctionButton("显示敌方陆军路线, 仅服务端有效", Icon.distribution, () -> {
+            }) {
+                final Color[] colors = {Pal.ammo, Pal.suppress, Liquids.water.color};
+                final Seq<Tile> spawners = new Seq<>();
+                final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
+                final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
+                Tile tmp;
+
+                @Override
+                public void init() {
+                    Events.on(EventType.WorldLoadEvent.class, e -> {
+                        spawners.clear();
+                        buildingSpawners.clear();
+                        coreSpawners.clear();
+
+                        //仅服务端有效
+                        if ((!net.active() || net.server())) {
+                            if (state.rules.waves) {
+                                PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
+                                    if (b) spawners.add(t);
+                                    else coreSpawners.put(c, t);
+                                });
+                            }
+                        } else {
+                            checked = false;
+                        }
+                    });
+
+                    Events.on(EventType.UnitCreateEvent.class, e -> {
+                        if (state.rules.waves) {
+                            if (!e.unit.isGrounded() || e.unit.team != player.team() || e.spawner == null || e.spawner.team == state.rules.defaultTeam)
+                                return;
+
+                            Tile spawnTile = spawnTile(e.spawner);
+
+                            if (spawnTile != null && !spawnTile.solid()) {
+                                buildingSpawners.put(spawnTile, e.unit.pathType());
+                            }
+                        }
+                    });
+
+                    Events.on(EventType.BlockDestroyEvent.class, e -> {
+                        if (state.rules.waves) {
+                            if (e.tile.build.block instanceof PayloadBlock) {
+                                buildingSpawners.remove(spawnTile(e.tile.build));
+                            }
+
+                            if (state.rules.attackMode && e.tile.build instanceof CoreBlock.CoreBuild cb) {
+                                coreSpawners.remove(cb);
+                            }
+                        }
+                    });
+
+                    Events.run(EventType.Trigger.draw, () -> {
+                        if (checked) {
+
+                            spawners.each(tile -> {
+                                for (int i = 0; i < colors.length; i++) {
+                                    drawPathFinder(tile, i);
+                                }
+                            });
+
+                            buildingSpawners.each(this::drawPathFinder);
+
+                            coreSpawners.values().toSeq().each(tile -> {
+                                for (int i = 0; i < colors.length; i++) {
+                                    drawPathFinder(tile, i);
+                                }
+                            });
+
+                        }
+                    });
+                }
+
+                public Tile spawnTile(Building spawner) {
+                    int radius = (spawner.block instanceof UnitAssembler a ? a.areaSize : 0) + spawner.block.size * 4 + 1;
+                    int ox = Geometry.d4x(spawner.rotation) * radius;
+                    int oy = Geometry.d4y(spawner.rotation) * radius;
+
+                    return world.tileWorld(spawner.x + ox, spawner.y + oy);
+                }
+
+                public void drawPathFinder(Tile tile, int type) {
+                    tmp = tile;
+                    float offset = ((type + 1) * 2 - colors.length) * 1.4f;
+
+                    Drawf.square(tmp.worldx() + offset, tmp.worldy() + offset, 6f, colors[type]);
+
+                    while (true) {
+                        Tile nextTile = Vars.pathfinder.getTargetTile(tmp, Vars.pathfinder.getField(Vars.state.rules.waveTeam, type, 0));
+                        if (tmp == nextTile) {
+                            Drawf.square(tmp.worldx() + offset, tmp.worldy() + offset, 6f, colors[type]);
+                            break;
+                        }
+
+                        Draw.z(Layer.fogOfWar + 1);
+                        Drawf.dashLine(colors[type], tmp.worldx() + offset, tmp.worldy() + offset, nextTile.worldx() + offset, nextTile.worldy() + offset);
+                        tmp = nextTile;
+                    }
+
+                }
+            },
+
+            new FunctionButton("拆除地图上所有的石头", Icon.spray, () -> {
                 Unit unit = player.unit();
                 world.tiles.eachTile(tile -> {
                     Block block = tile.block();
@@ -138,47 +227,65 @@ public class ButtonsTable {
                 state.teams.get(Team.derelict).buildings.each(b -> player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY())));
             }, null),
 
-            new FunctionButton("警告场上是否放置病毒逻辑, 拆除地图上所有病毒逻辑和非玩家建造的潜在病毒逻辑", Icon.spray, () -> {}, null){
+            new FunctionButton("拆除地图上所有病毒逻辑和非玩家建造的潜在病毒逻辑", Icon.spray, () -> {
+            }, null) {
+                private final Seq<Building> dangerous = new Seq<>();
+
                 @Override
-                public void on() {
-                    Boolf<LogicBlock.LogicBuild> isVirus = lb -> {
-                        for (LExecutor.LInstruction instruction : LAssembler.assemble(lb.code, false).instructions) {
-                            if(instruction instanceof LExecutor.UnitControlI uci && uci.type == LUnitControl.build){
-                                return true;
-                            }
-                        }
-                        return false;
-                    };
+                public void init() {
+                    Events.on(EventType.WorldLoadEvent.class, e -> dangerous.clear());
 
                     Events.on(EventType.BlockBuildEndEvent.class, e -> {
-                        if(!e.breaking)return;
-                        if(e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus.get(lb)){
-                            if(e.unit.isPlayer())Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于"+ "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
+                        if (!e.breaking) return;
+                        if (state.rules.logicUnitBuild && e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
+                            if (e.unit.isPlayer())
+                                Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于" + "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
+                            if (net.server()) {
+                                lb.remove();
+                                Call.sendChatMessage("已移除该逻辑");
+                            }
                         }
-//                        if(e.tile.block() == Blocks.thoriumReactor && ){
-//                            Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于"+ "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
-//                        }
+
+                        if (state.rules.reactorExplosions && e.tile.build instanceof NuclearReactor.NuclearReactorBuild nr) {
+                            for (CoreBlock.CoreBuild core : state.teams.get(player.team()).cores) {
+                                float dst = core.dst(e.tile);
+                                if (dst < 22 * 8) {
+                                    dangerous.add(nr);
+                                    Call.sendChatMessage(nr.lastAccessed + "[white]建造了位于" + "(" + nr.tileX() + "," + nr.tileY() + ")" + "的危险钍反");
+                                    break;
+                                }
+                            }
+                        }
                     });
 
                     check = () -> {
                         state.teams.get(player.team()).buildings.each(b -> {
-                            if(b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
-                                    && cb.lastConfig instanceof LogicBlock.LogicBuild lb && isVirus.get(lb)){
+                            if (b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
+                                    && cb.lastConfig instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
 
                                 player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
-                            } else if((b instanceof LogicBlock.LogicBuild lb && isVirus.get(lb))){
+                            } else if ((b instanceof LogicBlock.LogicBuild lb && isVirus(lb))) {
                                 player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
                                 Fx.ripple.at(b.tileX(), b.tileY(), 40, Pal.heal);
                             }
                         });
                     };
                 }
+
+                public boolean isVirus(LogicBlock.LogicBuild lb) {
+                    for (LExecutor.LInstruction instruction : LAssembler.assemble(lb.code, false).instructions) {
+                        if (instruction instanceof LExecutor.UnitControlI uci && uci.type == LUnitControl.build) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
             },
 
             new FunctionButton("显示屏幕内地图方格燃烧性", new TextureRegionDrawable(StatusEffects.burning.fullIcon), () -> {
             }) {
                 @Override
-                public void on() {
+                public void init() {
                     Events.run(EventType.Trigger.draw, () -> {
                         if (checked) {
                             camera.bounds(Tmp.r1).grow(2 * tilesize);
@@ -211,7 +318,7 @@ public class ButtonsTable {
                 final ObjectMap<Item, Tile> ores = new ObjectMap<>();
 
                 @Override
-                public void on() {
+                public void init() {
                     update = () -> {
                         Unit unit = player.unit();
                         CoreBlock.CoreBuild core = player.closestCore();
@@ -228,16 +335,6 @@ public class ButtonsTable {
                                 Tile tile = world.tileWorld(unit.x - type.mineRange + tx, unit.y - type.mineRange + ty);
 
                                 if (!unit.validMine(tile)) continue;
-
-//                                float dst = unit.dst(tile.worldx(), tile.worldy());
-//                                Item drop = unit.getMineResult(tile);
-//
-//                                Tile near = ores.get(drop);
-//                                float minDst = near == null ? 999999 : unit.dst(near.worldx(), near.worldy());
-//
-//                                if(dst < minDst && unit.canMine()){
-//                                    ores.put(drop, tile);
-//                                }
 
                                 float angle = unit.angleTo(tile.worldx(), tile.worldy());
                                 Item drop = unit.getMineResult(tile);
@@ -302,7 +399,7 @@ public class ButtonsTable {
                 float pr;
 
                 @Override
-                public void on() {
+                public void init() {
                     update = () -> {
                         if (!player.within(playerPos, tilesize * 14) && !player.within(checkedPos, tilesize)) {
                             playerPos.set(unit().x, unit().y);
@@ -365,7 +462,7 @@ public class ButtonsTable {
                 final ObjectMap<Building, Integer> map = new ObjectMap<>();
 
                 @Override
-                public void on() {
+                public void init() {
                     checkOff = map::clear;
 
                     Events.on(EventType.UnitCreateEvent.class, e -> {
@@ -390,7 +487,7 @@ public class ButtonsTable {
                 final Seq<UnitType> types = new Seq<>();
 
                 @Override
-                public void on() {
+                public void init() {
                     types.selectFrom(content.units(), t -> !t.playerControllable);
 
                     check = () -> types.each(t -> t.playerControllable = true);
@@ -407,7 +504,7 @@ public class ButtonsTable {
         parents.table(buttonsTable -> {
             int i = 0;
             for (FunctionButton function : functionButtons) {
-                function.on();
+                function.init();
 
                 ImageButton imageButton = buttonsTable.button(
                         function.icon,
@@ -482,8 +579,7 @@ public class ButtonsTable {
             this.checkOff = checkOff;
         }
 
-        public void on() {
-
+        public void init() {
         }
     }
 }

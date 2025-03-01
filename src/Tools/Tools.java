@@ -4,22 +4,34 @@ import Tools.UI.ToolsFragment;
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
+import arc.graphics.g2d.TextureRegion;
 import arc.math.Mathf;
-import arc.scene.ui.layout.WidgetGroup;
+import arc.struct.Seq;
 import arc.util.Log;
+import arc.util.TaskQueue;
 import mindustry.Vars;
+import mindustry.ai.Pathfinder;
+import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
+import mindustry.gen.Call;
 import mindustry.gen.Unit;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
+import mindustry.type.Category;
 import mindustry.type.StatusEffect;
+import mindustry.world.blocks.environment.Prop;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 import static mindustry.Vars.mods;
 import static mindustry.Vars.ui;
 
 public class Tools extends Mod{
+    public static Runnable runPathfinderQueue;
 
     @Override
     public void init(){
@@ -45,6 +57,7 @@ public class Tools extends Mod{
         ui.settings.game.checkPref("蓝图物品需求计入核心", false);
         ui.settings.game.checkPref("是否默认收起快捷蓝图表", false);
         ui.settings.game.checkPref("保存设定的工具表的位置", true);
+        ui.settings.game.checkPref("详细溅射范围", false);
         //ui.settings.game.checkPref("重生或附身其他单位时保存建筑序列", true);
 
         new ShowShowSheRange();
@@ -62,11 +75,10 @@ public class Tools extends Mod{
             }
         }
 
-        Mods.LoadedMod mod = mods.getMod(this.getClass());
-        Log.info(mod.main != null && !mod.meta.hidden);
     }
 
     public void sdawda(){
+        Vars.state.rules.infiniteResources = true;
     }
 
     public void putSetting(String name){

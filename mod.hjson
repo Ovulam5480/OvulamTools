@@ -1,25 +1,19 @@
-#the mod name as displayed in-game
 displayName: "Tools"
 
-#the internal name of your mod
 name: "Tools"
 
-#your name
 author: "Ovulam5480"
 
-#the fully qualified main class of the mod
 main: "Tools.Tools"
 
-#the mod description as seen in the mod dialog
 description: "用于显示子弹溅射范围或者单位坠落伤害半径的辅助模组(起码以前是)"
 
-#the mod version
-version: 0.6.2
+version: 0.6.3
 
-#the minimum game build required to run this mod
 minGameVersion: 146
 
-#this is a java mod
 java: true
 
 hidden: true
+
+repo: Ovulam5480/OvulamTools

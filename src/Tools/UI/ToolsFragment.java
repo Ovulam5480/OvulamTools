@@ -8,6 +8,8 @@ import arc.Events;
 import arc.func.Cons;
 import arc.func.Prov;
 import arc.graphics.Color;
+import arc.graphics.gl.FrameBuffer;
+import arc.graphics.gl.Shader;
 import arc.math.Mathf;
 import arc.scene.Group;
 import arc.scene.style.Drawable;
@@ -20,6 +22,7 @@ import mindustry.Vars;
 import mindustry.game.EventType;
 import mindustry.gen.Icon;
 import mindustry.gen.Tex;
+import mindustry.graphics.Shaders;
 import mindustry.ui.Styles;
 
 public class ToolsFragment {
@@ -35,9 +38,6 @@ public class ToolsFragment {
     public ToolsFragment(Group parent) {
         parent.fill(full -> {
             full.bottom().left().visible(() -> Vars.ui.hudfrag.shown);
-
-            Vars.control.input.selectPlans.clear();
-
             full.table(frame -> {
                 //------------------快捷蓝图表-------------------
                 Table allSchematicsTable = new Table();
@@ -113,7 +113,6 @@ public class ToolsFragment {
                     });
 
                 }).growX().margin(10);
-
             });
 
             if(Core.settings.getBool("保存设定的工具表的位置")){
