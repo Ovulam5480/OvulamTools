@@ -152,6 +152,7 @@ public class ButtonsTable {
                     });
 
                     Events.on(EventType.BlockDestroyEvent.class, e -> {
+                        if(e.tile.build == null)return;
                         if (state.rules.waves) {
                             if (e.tile.build.block instanceof PayloadBlock) {
                                 buildingSpawners.remove(spawnTile(e.tile.build));
