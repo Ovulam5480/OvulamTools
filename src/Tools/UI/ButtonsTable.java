@@ -1,18 +1,22 @@
 package Tools.UI;
 
 import Tools.PublicStaticVoids;
+import Tools.Tools;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Font;
+import arc.graphics.g2d.Lines;
 import arc.math.Mathf;
 import arc.math.geom.*;
 import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.layout.Table;
+import arc.struct.FloatSeq;
+import arc.struct.IntSeq;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.*;
@@ -110,39 +114,44 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("显示敌方陆军路线, 仅服务端有效", Icon.distribution, () -> {
+            new FunctionButton("PVE显示敌方进攻路线", Icon.distribution, () -> {
             }) {
                 final Color[] colors = {Pal.ammo, Pal.suppress, Liquids.water.color};
                 final Seq<Tile> spawners = new Seq<>();
                 final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
                 final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
+                final IntSeq[] tileSeqs = new IntSeq[3];
                 Tile tmp;
 
                 @Override
                 public void init() {
+                    check = () -> Tools.copyPathfinder.setShouldUpdate(true);
+                    checkOff = () -> Tools.copyPathfinder.setShouldUpdate(false);
+
+                    for (int i = 0; i < 3; i++) {
+                        tileSeqs[i] = new IntSeq();
+                    }
+
                     Events.on(EventType.WorldLoadEvent.class, e -> {
                         spawners.clear();
                         buildingSpawners.clear();
                         coreSpawners.clear();
-
-                        //仅服务端有效
-                        if ((!net.active() || net.server())) {
-                            if (state.rules.waves) {
-                                PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
-                                    if (b) spawners.add(t);
-                                    else coreSpawners.put(c, t);
-                                });
-                            }
-                        } else {
-                            checked = false;
+                        for (IntSeq tileSeq : tileSeqs) {
+                            tileSeq.clear();
                         }
+
+                        if (!state.rules.pvp) {
+                            PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
+                                if (b) spawners.add(t);
+                                else coreSpawners.put(c, t);
+                            });
+                        }
+
+                        updateSpawnerPaths();
                     });
 
                     Events.on(EventType.UnitCreateEvent.class, e -> {
-                        if (state.rules.waves) {
-                            if (!e.unit.isGrounded() || e.unit.team != player.team() || e.spawner == null || e.spawner.team == state.rules.defaultTeam)
-                                return;
-
+                        if (!state.rules.pvp && e.unit.team != player.team() && e.unit.isGrounded() && e.spawner != null) {
                             Tile spawnTile = spawnTile(e.spawner);
 
                             if (spawnTile != null && !spawnTile.solid()) {
@@ -152,37 +161,59 @@ public class ButtonsTable {
                     });
 
                     Events.on(EventType.BlockDestroyEvent.class, e -> {
-                        if(e.tile.build == null)return;
-                        if (state.rules.waves) {
-                            if (e.tile.build.block instanceof PayloadBlock) {
-                                buildingSpawners.remove(spawnTile(e.tile.build));
-                            }
+                        Building spawner = e.tile.build;
+                        if (spawner == null || spawner.team == state.rules.defaultTeam) return;
 
-                            if (state.rules.attackMode && e.tile.build instanceof CoreBlock.CoreBuild cb) {
-                                coreSpawners.remove(cb);
-                            }
-                        }
+                        if (spawner.block instanceof PayloadBlock) buildingSpawners.remove(e.tile);
+                        else if (spawner.block instanceof CoreBlock) coreSpawners.remove(e.tile.build);
                     });
+
+                    Events.on(EventType.TileChangeEvent.class, e -> updateSpawnerPaths());
 
                     Events.run(EventType.Trigger.draw, () -> {
                         if (checked) {
+                            camera.bounds(Tmp.r1).grow(2 * tilesize);
+                            Draw.z(Layer.fogOfWar + 1);
 
-                            spawners.each(tile -> {
-                                for (int i = 0; i < colors.length; i++) {
-                                    drawPathFinder(tile, i);
-                                }
-                            });
+                            for (int i = 0; i < tileSeqs.length; i++) {
+                                IntSeq tileSeq = tileSeqs[i];
+                                float offset = ((i + 1) * 2 - colors.length) * 1.4f;
 
-                            buildingSpawners.each(this::drawPathFinder);
-
-                            coreSpawners.values().toSeq().each(tile -> {
-                                for (int i = 0; i < colors.length; i++) {
-                                    drawPathFinder(tile, i);
-                                }
-                            });
-
+                                drawPaths(tileSeq, Pal.gray, 3f, offset);
+                                drawPaths(tileSeq, colors[i], 1f, offset);
+                            }
+                            Draw.reset();
                         }
                     });
+                }
+
+                public void drawPaths(IntSeq tileSeq, Color color, float thick, float offset) {
+                    Draw.color(color);
+                    int lastTile = -1;
+
+                    Lines.stroke(thick);
+                    for (int j = 0; j < tileSeq.size; j++) {
+                        int tile = tileSeq.get(j);
+
+                        float x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
+                                x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
+
+                        if (lastTile == -1) {
+                            Lines.square(x1, y1, 7, 45);
+                        }
+
+                        boolean containTo = Tmp.r1.contains(x1, y1), containFrom = Tmp.r1.contains(x2, y2);
+
+                        if (tile == -1 && containFrom) {
+                            Lines.square(x2, y2, 7, 45);
+                        } else if (lastTile == -1 && containTo) {
+                            Lines.square(x1, y1, 7, 45);
+                        } else if (containFrom && containTo) {
+                            Lines.dashLine(x1, y1, x2, y2, (int) Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)) / 8 * 2);
+                        }
+
+                        lastTile = tile;
+                    }
                 }
 
                 public Tile spawnTile(Building spawner) {
@@ -193,21 +224,39 @@ public class ButtonsTable {
                     return world.tileWorld(spawner.x + ox, spawner.y + oy);
                 }
 
-                public void drawPathFinder(Tile tile, int type) {
-                    tmp = tile;
-                    float offset = ((type + 1) * 2 - colors.length) * 1.4f;
+                public void updateSpawnerPaths() {
+                    for (IntSeq tileSeq : tileSeqs) {
+                        tileSeq.clear();
+                    }
 
-                    Drawf.square(tmp.worldx() + offset, tmp.worldy() + offset, 6f, colors[type]);
+                    spawners.each(tile -> {
+                        for (int i = 0; i < colors.length; i++) {
+                            updatePaths(tile, i);
+                        }
+                    });
+
+                    buildingSpawners.each(this::updatePaths);
+
+                    coreSpawners.values().toSeq().each(tile -> {
+                        for (int i = 0; i < colors.length; i++) {
+                            updatePaths(tile, i);
+                        }
+                    });
+
+                }
+
+                public void updatePaths(Tile tile, int type) {
+                    tmp = tile;
 
                     while (true) {
-                        Tile nextTile = Vars.pathfinder.getTargetTile(tmp, Vars.pathfinder.getField(Vars.state.rules.waveTeam, type, 0));
+                        Tile nextTile = Tools.copyPathfinder.getTargetTile(tmp, Tools.copyPathfinder.getField(Vars.state.rules.waveTeam, type));
+                        tileSeqs[type].add(tmp.pos());
+
                         if (tmp == nextTile) {
-                            Drawf.square(tmp.worldx() + offset, tmp.worldy() + offset, 6f, colors[type]);
+                            tileSeqs[type].add(-1);
                             break;
                         }
 
-                        Draw.z(Layer.fogOfWar + 1);
-                        Drawf.dashLine(colors[type], tmp.worldx() + offset, tmp.worldy() + offset, nextTile.worldx() + offset, nextTile.worldy() + offset);
                         tmp = nextTile;
                     }
 

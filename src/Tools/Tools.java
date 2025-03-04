@@ -31,10 +31,12 @@ import static mindustry.Vars.mods;
 import static mindustry.Vars.ui;
 
 public class Tools extends Mod{
-    public static Runnable runPathfinderQueue;
+    public static CopyPathfinder copyPathfinder;
 
     @Override
     public void init(){
+        copyPathfinder = new CopyPathfinder();
+
         ui.settings.graphics.checkPref("详细溅射范围", false);
         putSetting("溅射范围透明度");
         putSetting("破片范围透明度");

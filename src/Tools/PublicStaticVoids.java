@@ -1,36 +1,16 @@
 package Tools;
 
-import arc.Events;
-import arc.math.Angles;
 import arc.math.Mathf;
-import arc.math.geom.*;
-import arc.struct.IntQueue;
-import arc.struct.IntSeq;
-import arc.util.Log;
-import arc.util.Nullable;
-import arc.util.Time;
+import arc.math.geom.Geometry;
 import arc.util.Tmp;
 import mindustry.Vars;
-import mindustry.ai.Pathfinder;
-import mindustry.ai.WaveSpawner;
 import mindustry.core.World;
-import mindustry.game.EventType;
-import mindustry.game.Team;
 import mindustry.gen.Building;
-import mindustry.gen.Bullet;
-import mindustry.gen.Hitboxc;
-import mindustry.gen.Unit;
 import mindustry.world.Tile;
-import mindustry.world.blocks.storage.CoreBlock;
-
-import java.time.temporal.ValueRange;
 
 import static mindustry.Vars.*;
-import static mindustry.ai.Pathfinder.*;
 
 public class PublicStaticVoids {
-
-
     private static boolean any = false;
     private static final float coreMargin = tilesize * 2f;
     private static final float maxSteps = 30;
