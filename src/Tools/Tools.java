@@ -79,7 +79,6 @@ public class Tools extends Mod{
 
     public void sdawda(){
         Vars.state.rules.infiniteResources = true;
-        SchematicsDialog
     }
 
     public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){
