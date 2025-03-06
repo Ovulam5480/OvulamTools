@@ -1,4 +1,4 @@
-package Tools;
+package Tools.copy;
 
 import arc.math.Mathf;
 import arc.math.geom.Geometry;

@@ -1,5 +1,6 @@
-package Tools;
+package Tools.copy;
 
+import Tools.Tools;
 import arc.Core;
 import arc.Events;
 import arc.func.Prov;

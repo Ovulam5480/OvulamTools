@@ -1,6 +1,6 @@
 package Tools.UI;
 
-import Tools.PublicStaticVoids;
+import Tools.copy.PublicStaticVoids;
 import Tools.Tools;
 import arc.Core;
 import arc.Events;
@@ -15,10 +15,7 @@ import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.layout.Table;
-import arc.struct.FloatSeq;
-import arc.struct.IntSeq;
-import arc.struct.ObjectMap;
-import arc.struct.Seq;
+import arc.struct.*;
 import arc.util.*;
 import mindustry.Vars;
 import mindustry.content.*;
@@ -551,24 +548,32 @@ public class ButtonsTable {
     float maxWidth = 288;
 
     public ButtonsTable(Table parents) {
+        for (int i = 0; i < functionButtons.length; i++) {
+            //Core.settings.put("tools-functions-" + i, false);
+            functionButtons[i].checked = Core.settings.getBool("tools-functions-" + i);
+        }
+
         parents.table(buttonsTable -> {
             int i = 0;
             for (FunctionButton function : functionButtons) {
                 function.init();
+                Log.info(function.hasSwitch());
 
+                int j = i;
                 ImageButton imageButton = buttonsTable.button(
                         function.icon,
-                        function.checkOff == null ? Styles.clearNonei : Styles.clearNoneTogglei,
+                        !function.hasSwitch() ? Styles.clearNonei : Styles.clearNoneTogglei,
                         () -> {
-                            if (function.checkOff == null) {
-                                function.check.run();
-                            } else {
-                                function.checked = !function.checked;
-
-                                if (function.checked) function.check.run();
-                                else function.checkOff.run();
+                            if(function.check != null){
+                                (function.checked ? function.checkOff : function.check).run();
                             }
-                        }).size(46).update(b -> b.setChecked(function.checked)).tooltip(function.description).margin(10).get();
+
+                            if(function.hasSwitch()){
+                                function.checked = !function.checked;
+                                Core.settings.put("tools-functions-" + j, function.checked);
+                            }
+
+                        }).size(46).checked(b -> function.checked).tooltip(function.description).margin(10).get();
                 imageButton.resizeImage(32);
 
                 if (i % rowWidth == rowWidth - 1) buttonsTable.row();
@@ -583,15 +588,11 @@ public class ButtonsTable {
 
         Events.run(EventType.Trigger.update, () -> {
             for (FunctionButton function : functionButtons) {
-                if (function.checked) function.update.run();
+                if (function.update != null && function.checked) function.update.run();
             }
         });
     }
 
-
-    public float getOneDecimal(float f) {
-        return (float) Mathf.floor(f * 10) / 10;
-    }
 
     public static class FunctionButton {
         public String description;
@@ -602,16 +603,12 @@ public class ButtonsTable {
         public FunctionButton(String description, Drawable icon) {
             this.description = description;
             this.icon = icon;
-            update = check = () -> {
-            };
         }
 
         public FunctionButton(String description, Drawable icon, Runnable update) {
             this.description = description;
             this.icon = icon;
             this.update = update;
-            check = checkOff = () -> {
-            };
         }
 
         public FunctionButton(String description, Drawable icon, Runnable check, Runnable checkOff) {
@@ -630,6 +627,10 @@ public class ButtonsTable {
         }
 
         public void init() {
+        }
+
+        public boolean hasSwitch(){
+            return checkOff != null || update != null;
         }
     }
 }
