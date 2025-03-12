@@ -5,12 +5,27 @@ import arc.math.geom.Geometry;
 import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.core.World;
+import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.world.Tile;
 
 import static mindustry.Vars.*;
 
 public class PublicStaticVoids {
+    public static int completeDamage(Team team, float x, float y, float radius){
+        int total = 0;
+        int trad = (int)(radius / tilesize);
+        for(int dx = -trad; dx <= trad; dx++){
+            for(int dy = -trad; dy <= trad; dy++){
+                Tile tile = world.tile(Math.round(x / tilesize) + dx, Math.round(y / tilesize) + dy);
+                if(tile != null && tile.build != null && (team == null || team != tile.team()) && dx*dx + dy*dy <= trad*trad){
+                    total ++;
+                }
+            }
+        }
+        return total;
+    }
+
     private static boolean any = false;
     private static final float coreMargin = tilesize * 2f;
     private static final float maxSteps = 30;

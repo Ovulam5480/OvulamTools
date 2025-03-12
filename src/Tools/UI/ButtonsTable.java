@@ -518,6 +518,7 @@ public class ButtonsTable {
                         }
                     });
 
+
                     Font font = Fonts.outline;
                     Events.run(EventType.Trigger.draw, () -> {
                         if (!checked) return;
@@ -544,12 +545,10 @@ public class ButtonsTable {
     };
 
     float size = 46;
-    int rowWidth = 6;
-    float maxWidth = 288;
+    int rowWidth = 7;
 
     public ButtonsTable(Table parents) {
         for (int i = 0; i < functionButtons.length; i++) {
-            //Core.settings.put("tools-functions-" + i, false);
             functionButtons[i].checked = Core.settings.getBool("tools-functions-" + i);
         }
 
@@ -557,7 +556,6 @@ public class ButtonsTable {
             int i = 0;
             for (FunctionButton function : functionButtons) {
                 function.init();
-                Log.info(function.hasSwitch());
 
                 int j = i;
                 ImageButton imageButton = buttonsTable.button(
@@ -584,7 +582,7 @@ public class ButtonsTable {
             for (int j = 0; j < (rowWidth - i % rowWidth) % rowWidth; j++) {
                 buttonsTable.add().size(size);
             }
-        }).width(maxWidth);
+        }).width(rowWidth * size);
 
         Events.run(EventType.Trigger.update, () -> {
             for (FunctionButton function : functionButtons) {

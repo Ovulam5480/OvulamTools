@@ -40,6 +40,8 @@ val androidMinVersion: String by project
 
 val useJitpack = property("mindustryBE").toString().toBooleanStrict()
 
+val gamePath: String by project
+
 fun arc(module: String): String{
     return "com.github.Anuken.Arc$module:$arcVersion"
 }
@@ -116,6 +118,9 @@ project(":"){
 
         compileOnly(mindustry(":core"))
         compileOnly(arc(":arc-core"))
+
+        //implementation("com.github.Towdium:PinIn:1.6.0")
+        
     }
 
     val jar = tasks.named<Jar>("jar"){
@@ -217,4 +222,13 @@ project(":"){
             logger.lifecycle("Copied :jar output to $folder.")
         }
     }
+
+    tasks.register<Exec>("runGame") {
+        group = "test in game"
+
+        dependsOn("install")
+        commandLine = listOf("cmd", "/c", "java", "-jar", gamePath)
+    }
+
+
 }

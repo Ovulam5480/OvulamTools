@@ -4,16 +4,26 @@ import Tools.UI.ToolsFragment;
 import Tools.copy.CopyPathfinder;
 import arc.Core;
 import arc.Events;
+import arc.Graphics;
 import arc.files.Fi;
 import arc.math.Mathf;
 import mindustry.Vars;
+import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
+import mindustry.game.Team;
 import mindustry.gen.Icon;
+import mindustry.gen.Payloadc;
+import mindustry.gen.Unit;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
+import mindustry.ui.Fonts;
 import mindustry.ui.dialogs.SettingsMenuDialog;
+import mindustry.world.blocks.payloads.BuildPayload;
+import mindustry.world.blocks.payloads.PayloadConveyor;
+import mindustry.world.blocks.payloads.UnitPayload;
+import mindustry.world.blocks.units.UnitFactory;
 
 import static mindustry.Vars.mods;
 import static mindustry.Vars.ui;
@@ -30,6 +40,7 @@ public class Tools extends Mod{
         ui.settings.addCategory("工具箱设置", Icon.chartBar, st -> {
             st.checkPref("禁用弹药范围显示, 重启生效", false);
             st.checkPref("详细溅射范围", false);
+            st.checkPref("显示单位坠落伤害数值", true);
             putSetting(st, "溅射范围透明度");
             putSetting(st, "破片范围透明度");
             putSetting(st, "闪电路径透明度");
@@ -78,7 +89,6 @@ public class Tools extends Mod{
     }
 
     public void sdawda(){
-        Vars.state.rules.infiniteResources = true;
     }
 
     public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){

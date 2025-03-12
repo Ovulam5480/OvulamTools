@@ -39,32 +39,32 @@ public class ToolsFragment {
         parent.fill(full -> {
             full.bottom().left().visible(() -> Vars.ui.hudfrag.shown);
             full.table(frame -> {
-                //------------------快捷蓝图表-------------------
+                //------------------快捷蓝图表------------------
                 Table allSchematicsTable = new Table();
-
                 schematicsTable = new ShortcutsSchematicsTable(allSchematicsTable);
                 //-----------------矿物计算器表------------------
                 Table sensorOresTable = new Table(Tex.pane);
                 sensorOresTable.defaults().width(getWidth());
-
                 new SensorOresTables(sensorOresTable, resourcesCalculator);
-                //------------------功能按钮表-------------------
+                //------------------功能按钮表------------------
                 Table buttonsTable = new Table(Tex.pane);
-
                 new ButtonsTable(buttonsTable);
-                //--------------------地蓝辅助器表------------
+                //--------------------地蓝辅助器表---------------
                 Table scriptsTable = new Table();
                 scriptsTable.defaults().width(46 * 7 + 40);
-
                 new SchematicAuxiliaryTable(scriptsTable);
-                //--------------------规则提示表------------
+                //--------------------规则提示表----------------
                 Table rulesHintTable = new Table(Tex.pane);
                 rulesHintTable.defaults().width(getWidth());
                 RulesHintTable hint =new RulesHintTable(rulesHintTable);
+                //--------------------更新器表-----------------
+                Table updaterTable = new Table(Tex.pane);
+                updaterTable.defaults().width(46 * 7 + 40);
+                new UpdaterTable(updaterTable);
+                //-------------------------------------------
 
                 mainStack = new Stack();
                 mainStack.update(() -> {
-
                     if(hide || mode != previousMode){
                         mainStack.clear();
                         if(hide)return;
@@ -76,6 +76,7 @@ public class ToolsFragment {
                     else if(is(Mode.ores))mainStack.add(sensorOresTable);
                     else if(is(Mode.scripts))mainStack.add(scriptsTable);
                     else if(is(Mode.rules))mainStack.add(rulesHintTable);
+                    else if(is(Mode.update))mainStack.add(updaterTable);
                 });
 
                 frame.add(mainStack).row();
@@ -105,6 +106,7 @@ public class ToolsFragment {
                     addOptionButton(optionTable, Icon.list, Mode.buttons);
                     addOptionButton(optionTable, Icon.zoom, Mode.ores);
                     addOptionButton(optionTable, Icon.save, Mode.scripts);
+                    addOptionButton(optionTable, Icon.github, Mode.update);
 
                     optionTable.button(Icon.info, Styles.clearNoneTogglei, () -> setModeDef(Mode.rules)).update(b -> {
                         b.setChecked(is(Mode.rules));
@@ -170,6 +172,6 @@ public class ToolsFragment {
     }
 
     public enum Mode{
-        schematics, buttons, ores, scripts, rules
+        schematics, buttons, ores, scripts, rules, update
     }
 }
