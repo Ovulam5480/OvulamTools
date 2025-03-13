@@ -1,15 +1,20 @@
 package Tools;
 
 import Tools.UI.ToolsFragment;
+import Tools.UI.UpdaterTable;
 import Tools.copy.CopyPathfinder;
 import arc.Core;
 import arc.Events;
 import arc.Graphics;
 import arc.files.Fi;
 import arc.math.Mathf;
+import arc.util.Http;
+import arc.util.Log;
+import arc.util.serialization.Jval;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.UnitTypes;
+import mindustry.core.Version;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
 import mindustry.game.Team;
@@ -41,6 +46,7 @@ public class Tools extends Mod{
             st.checkPref("禁用弹药范围显示, 重启生效", false);
             st.checkPref("详细溅射范围", false);
             st.checkPref("显示单位坠落伤害数值", true);
+            st.checkPref("启用更新检查", true);
             putSetting(st, "溅射范围透明度");
             putSetting(st, "破片范围透明度");
             putSetting(st, "闪电路径透明度");
@@ -72,23 +78,56 @@ public class Tools extends Mod{
 
         if(!Core.settings.getBool("禁用弹药范围显示, 重启生效"))new ShowShowSheRange();
         if(!Core.settings.getBool("禁用快捷蓝图表, 重启生效")){
-            new ToolsFragment(ui.hudGroup);
+            ToolsFragment fragment = new ToolsFragment(ui.hudGroup);
 
             Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
             if(!fi.exists() || !fi.isDirectory()){
                 fi.file().mkdir();
 
-                Fi sl = mods.getMod(Tools.class).root.child("飙车示例.json");
+                Fi sl = thisMod().root.child("飙车示例.json");
                 if(!fi.child("飙车示例.json").exists() && sl.exists()){
                     sl.copyTo(fi);
                 }
+            }
+
+            if(Core.settings.getBool("启用更新检查")) {
+                Http.get("https://api.github.com/repos/Ovulam5480/OvulamTools/releases/latest", res -> {
+                    Jval json = Jval.read(res.getResultAsString());
+                    String tag = json.get("tag_name").asString();
+                    if (compareVersions(thisMod().meta.version, tag) == -1) {
+                        UpdaterTable.assets = json.get("assets").asArray();
+                        new UpdaterTable(fragment.updaterTable);
+
+                        Log.info("工具箱有新版更新");
+                    } else {
+                        Log.info("当前工具箱已是最新版本");
+                    }
+                }, e -> Log.info("无法连接github查询版本情况"));
             }
         }
 
         biabiabia();
     }
 
-    public void sdawda(){
+    public Mods.LoadedMod thisMod(){
+        return mods.getMod(Tools.class);
+    }
+
+    public static int compareVersions(String current, String lastest) {
+        String[] parts1 = current.split("\\.");
+        String[] parts2 = lastest.split("\\.");
+
+        int maxLength = Math.max(parts1.length, parts2.length);
+
+        for (int i = 0; i < maxLength; i++) {
+            int num1 = (i < parts1.length) ? Integer.parseInt(parts1[i]) : 0;
+            int num2 = (i < parts2.length) ? Integer.parseInt(parts2[i]) : 0;
+
+            if (num1 != num2) {
+                return Integer.compare(num1, num2);
+            }
+        }
+        return 0;
     }
 
     public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){

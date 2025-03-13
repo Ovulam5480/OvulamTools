@@ -18,6 +18,7 @@ import arc.scene.ui.ImageButton;
 import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Stack;
 import arc.scene.ui.layout.Table;
+import arc.util.Log;
 import mindustry.Vars;
 import mindustry.game.EventType;
 import mindustry.gen.Icon;
@@ -34,6 +35,8 @@ public class ToolsFragment {
     ShortcutsSchematicsTable schematicsTable;
 
     Stack mainStack;
+
+    public Table updaterTable;
 
     public ToolsFragment(Group parent) {
         parent.fill(full -> {
@@ -58,9 +61,8 @@ public class ToolsFragment {
                 rulesHintTable.defaults().width(getWidth());
                 RulesHintTable hint =new RulesHintTable(rulesHintTable);
                 //--------------------更新器表-----------------
-                Table updaterTable = new Table(Tex.pane);
+                updaterTable = new Table(Tex.pane);
                 updaterTable.defaults().width(46 * 7 + 40);
-                new UpdaterTable(updaterTable);
                 //-------------------------------------------
 
                 mainStack = new Stack();
@@ -106,10 +108,11 @@ public class ToolsFragment {
                     addOptionButton(optionTable, Icon.list, Mode.buttons);
                     addOptionButton(optionTable, Icon.zoom, Mode.ores);
                     addOptionButton(optionTable, Icon.save, Mode.scripts);
-                    addOptionButton(optionTable, Icon.github, Mode.update);
-
-                    optionTable.button(Icon.info, Styles.clearNoneTogglei, () -> setModeDef(Mode.rules)).update(b -> {
-                        b.setChecked(is(Mode.rules));
+                    addOptionButton(optionTable, Icon.github, Mode.update).update(b -> {
+                        b.setDisabled(!UpdaterTable.hasBuild);
+                        b.forEach(e -> e.setColor(UpdaterTable.hasBuild ? Color.white : Color.gray));
+                    });
+                    addOptionButton(optionTable, Icon.info, Mode.rules).update(b -> {
                         b.setDisabled(!hint.hasLists());
                         b.forEach(e -> e.setColor(hint.hasLists() ? Color.white : Color.gray));
                     });
@@ -129,6 +132,10 @@ public class ToolsFragment {
                 resourcesCalculator.sensorOres(e.tile, () -> true);
             }
         });
+    }
+
+    public void addUpdater(){
+
     }
 
     public Cell<ImageButton> addOptionButton(Table parents, Drawable icon, Mode mode){

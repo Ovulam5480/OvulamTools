@@ -4,56 +4,45 @@ import arc.Core;
 import arc.files.Fi;
 import arc.func.Floatc;
 import arc.scene.ui.layout.Table;
-import arc.util.ArcRuntimeException;
 import arc.util.Http;
 import arc.util.Strings;
 import arc.util.io.Streams;
 import arc.util.serialization.Jval;
+import mindustry.gen.Icon;
+import mindustry.graphics.Pal;
+import mindustry.ui.Bar;
 
 import static mindustry.Vars.*;
 import static mindustry.Vars.mods;
 
-public class UpdaterTable {
+public class UpdaterTable{
     private float modImportProgress;
-
-    Table updater = new Table();
+    private final Bar bar = new Bar(() -> modImportProgress == 0 ? "" : "正在下载中", () -> Pal.accent, () -> modImportProgress);
+    private final String proxy = "https://ghfast.top/";
+    public static boolean hasBuild;
+    public static Jval.JsonArray assets;
 
     public UpdaterTable(Table parents){
-
+        parents.table(t -> {
+            t.button(Icon.download, this::githubImportJavaMod).left().row();
+            t.add(bar).height(32).growX();
+        }).left();
+        hasBuild = true;
     }
 
-    private void githubImportJavaMod(String repo){
-        Http.get("https://api.github.com/repos/Ovulam5480/OvulamTools/releases/latest", res -> {
-            var json = Jval.read(res.getResultAsString());
-            var assets = json.get("assets").asArray();
+    private void githubImportJavaMod(){
+        var dexedAsset = assets.find(j -> j.getString("name").startsWith("dexed") && j.getString("name").endsWith(".jar"));
+        var asset = dexedAsset == null ? assets.find(j -> j.getString("name").endsWith(".jar")) : dexedAsset;
 
-            var dexedAsset = assets.find(j -> j.getString("name").startsWith("dexed") && j.getString("name").endsWith(".jar"));
-            var asset = dexedAsset == null ? assets.find(j -> j.getString("name").endsWith(".jar")) : dexedAsset;
+        var url = asset.getString("browser_download_url");
 
-            if(asset != null){
-                var url = asset.getString("browser_download_url");
+        modImportProgress = 0f;
 
-                Http.get(url, this::handleMod, this::importFail);
-            }else{
-                throw new ArcRuntimeException("No JAR file found in releases. Make sure you have a valid jar file in the mod's latest Github Release.");
-            }
-        }, this::importFail);
+        Http.get(proxy + url, this::handleMod, e -> Http.get(url, this::handleMod, this::fail));
     }
 
-    private void importFail(Throwable t){
-        Core.app.post(() -> modError(t));
-    }
-
-    void modError(Throwable error){
-        ui.loadfrag.hide();
-
-        if(error instanceof NoSuchMethodError || Strings.getCauses(error).contains(t -> t.getMessage() != null && (t.getMessage().contains("trust anchor") || t.getMessage().contains("SSL") || t.getMessage().contains("protocol")))){
-            ui.showErrorMessage("@feature.unsupported");
-        }else if(error instanceof Http.HttpStatusException st){
-            ui.showErrorMessage(Core.bundle.format("connectfail", Strings.capitalize(st.status.toString().toLowerCase())));
-        }else{
-            ui.showException(error);
-        }
+    private void fail(Throwable t){
+        ui.announce("[red]下载失败", 3f);
     }
 
     private void handleMod(Http.HttpResponse result){
@@ -71,13 +60,13 @@ public class UpdaterTable {
             file.delete();
             Core.app.post(() -> {
                 try{
-                    ui.loadfrag.hide();
+                    ui.announce("更新成功, 重启游戏有效", 3f);
                 }catch(Throwable e){
-                    ui.showException(e);
+                    fail(e);
                 }
             });
         }catch(Throwable e){
-            modError(e);
+            fail(e);
         }
     }
 }
