@@ -45,7 +45,7 @@ public class Tools extends Mod{
         ui.settings.addCategory("工具箱设置", Icon.chartBar, st -> {
             st.checkPref("禁用弹药范围显示, 重启生效", false);
             st.checkPref("详细溅射范围", false);
-            st.checkPref("显示单位坠落伤害数值", true);
+            st.checkPref("显示伤害数值", true);
             st.checkPref("启用更新检查", true);
             putSetting(st, "溅射范围透明度");
             putSetting(st, "破片范围透明度");

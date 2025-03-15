@@ -11,8 +11,10 @@ import arc.math.Rand;
 import arc.math.geom.Point2;
 import arc.scene.ui.layout.Scl;
 import arc.struct.IntFloatMap;
+import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Align;
+import arc.util.Strings;
 import arc.util.Tmp;
 import arc.util.pooling.Pools;
 import mindustry.Vars;
@@ -36,24 +38,39 @@ import mindustry.world.Tile;
 import static arc.Core.camera;
 import static mindustry.Vars.*;
 import static mindustry.Vars.state;
+import static mindustry.core.UI.*;
+import static mindustry.core.UI.thousands;
 
 public class ShowShowSheRange {
     private static final IntFloatMap damages = new IntFloatMap();
     public FrameBuffer buffer = new FrameBuffer();
+
     public Seq<PotentialBullet> potentialBullets = new Seq<>();
+    public ObjectMap<BulletType, Float> bulletTypeRange = new ObjectMap<>();
+
     public Rand rand = new Rand();
     public Font font = Fonts.outline;
-    final float averageLength = 0.97981f * 15;
-    final float radiusRatio = 1.12837f;
+
+    private final float averageLength = 0.97981f * 15;
+    private final float[] radiusMulti = new float[16];
+
 
     public ShowShowSheRange() {
+        for (int i = 0; i < radiusMulti.length; i++) {
+            radiusMulti[i] = getRadiusMulti(i + 1);
+        }
+
+        Events.run(EventType.Trigger.update, () -> {
+            camera.bounds(Tmp.r1);
+            resetPotentialBullet();
+        });
+
         Events.run(EventType.Trigger.draw, () -> {
             buffer.resize(Core.graphics.getWidth(), Core.graphics.getHeight());
-            resetPotentialBullet();
 
             drawRange(() -> potentialBullets.each(potentialBullet -> {
                 if (potentialBullet.type.splashDamageRadius > 0) {
-                    showSplashDamage(potentialBullet.x, potentialBullet.y, potentialBullet.type.splashDamageRadius, potentialBullet.type.splashDamage, potentialBullet.team);
+                    showSplashDamage(potentialBullet.x, potentialBullet.y, potentialBullet.type.splashDamageRadius, potentialBullet.type.splashDamage, potentialBullet.team, potentialBullet.type.buildingDamageMultiplier);
                 }
             }), Core.settings.getInt("溅射范围透明度") / 100f);
 
@@ -103,101 +120,119 @@ public class ShowShowSheRange {
             }, Core.settings.getInt("治疗范围透明度") / 100f);
 
 
-            drawRange(() -> {
-                Groups.unit.each(unit -> {
-                    if(unit.spawnedByCore)return;
+            drawRange(() -> Groups.unit.each(unit -> {
+                if(unit.spawnedByCore)return;
+                UnitType type = unit.type;
 
-                    UnitType type = unit.type;
+                boolean show = Core.settings.getBool("显示伤害数值");
 
-                    if (type.itemCapacity > 0 && unit.hasItem()) {
-                        Item item = unit.item();
-                        int amount = unit.stack().amount;
+                if (type.itemCapacity > 0 && unit.hasItem()) {
+                    Item item = unit.item();
+                    int amount = unit.stack().amount;
 
+                    if (item.explosiveness > 0) {
                         float explosiveness = 2 + item.explosiveness * amount * 1.53f;
                         int waves = explosiveness <= 2 ? 0 : Mathf.clamp((int) (explosiveness / 11), 1, 25);
-                        if (waves > 0) {
-                            float radius = Mathf.clamp((unit.bounds() + type.legLength / 1.7f) / 2f + explosiveness, 0, 50f);
+                        float radius = Mathf.clamp((unit.bounds() + type.legLength / 1.7f) / 2f + explosiveness, 0, 50f);
 
-                            showCompleteSplashDamage(unit.x, unit.y, radius);
-                            if(Core.settings.getBool("显示单位坠落伤害数值")){
-                                float damagePerWave = explosiveness / 2f;
+                        showCompleteSplashDamage(unit.x, unit.y, radius);
+                        if(show){
+                            float damagePerWave = explosiveness / 2f;
 
-                                String value;
-                                float radiusMulti = radius / 8 * 0.4f;
+                            String value;
+                            float radiusMulti = radius / 8 * 0.4f;
 
-                                if(unit.buildOn() != null && unit.buildOn().team != unit.team){
-                                    float total = 0;
-                                    for (int i = 0; i < waves; i++) {
-                                        total += Math.min(((i + 1f) / waves) * radiusMulti, unit.buildOn().block.size) * damagePerWave;
-                                    }
-
-                                    value = twoDig(total) + "";
-                                }else {
-                                    float wavesMulti = (waves + 1) / 2f * radiusMulti;
-                                    value = twoDig(damagePerWave) + (waves == 1 ? "" : ("*(" + waves + "~" + wavesMulti + ")" + "=" + twoDig(damagePerWave * wavesMulti)));
+                            if(unit.buildOn() != null && unit.buildOn().team != unit.team){
+                                float total = 0;
+                                for (int i = 0; i < waves; i++) {
+                                    total += Math.min(((i + 1f) / waves) * radiusMulti, unit.buildOn().block.size) * damagePerWave;
                                 }
 
-                                showValue(value, Items.pyratite.color, unit.x, unit.y + radius + 2);
+                                value = twoDig(total) + "";
+                            }else {
+                                float wavesMulti = (waves + 1) / 2f * radiusMulti;
+                                value = twoDig(damagePerWave) + (waves == 1 ? "" : ("*(" + waves + "~" + wavesMulti + ")" + "=" + twoDig(damagePerWave * wavesMulti)));
                             }
-                        }
 
+                            showValue(value, Items.pyratite.color, unit.x, unit.y + radius + 2);
+                        }
+                    }
+
+                    if (item.charge > 0) {
                         float power = item.charge * Mathf.pow(amount, 1.11f) * 160f;
-                        if (power > 0) {
-                            int length = (5 + Mathf.clamp((int) (Mathf.pow(power, 0.98f) / 500), 1, 18)) / 2;
-                            int lightingAmount = (int) Mathf.clamp(power / 700, 0, 8);
+                        int length = (5 + Mathf.clamp((int) (Mathf.pow(power, 0.98f) / 500), 1, 18)) / 2;
+                        int lightingAmount = (int) Mathf.clamp(power / 700, 0, 8);
 
-                            rand.setSeed(unit.id);
-                            showLightning(unit.x, unit.y, length, 1, lightingAmount);
-                            if(Core.settings.getBool("显示单位坠落伤害数值")){
-                                float damage = 3 + Mathf.pow(power, 0.35f);
-                                float total = twoDig(lightingAmount * damage * length);
+                        rand.setSeed(unit.id);
+                        showLightning(unit.x, unit.y, length, 1, lightingAmount);
+                        if(show){
+                            float damage = 3 + Mathf.pow(power, 0.35f);
+                            float total = twoDig(lightingAmount * damage * length);
 
-                                String value;
+                            String value;
 
-                                if(unit.buildOn() != null && unit.buildOn().team != unit.team){
-                                    value = twoDig((unit.buildOn().block.size / 2f * 8 / averageLength + 1) * lightingAmount * damage) + "";
-                                }else {
-                                    value = lightingAmount + "*" + twoDig(damage) + "*" + length + "=" + total;
-                                }
-
-                                showValue(value, Items.surgeAlloy.color, unit.x, unit.y + averageLength * length + 2);
+                            if(unit.buildOn() != null && unit.buildOn().team != unit.team){
+                                value = twoDig(radiusMulti[unit.buildOn().block.size - 1] * lightingAmount * damage) + "";
+                            }else {
+                                value = lightingAmount + "*" + twoDig(damage) + "*" + length + "=" + total;
                             }
+
+                            showValue(value, Items.surgeAlloy.color, unit.x, unit.y + averageLength * length + 2);
                         }
                     }
+                }
 
-                    float alpha = Core.settings.getInt("死亡爆炸透明度") / 100f;
-                    if (type.flying && type.createWreck) {
-                        Draw.color(Items.blastCompound.color, alpha);
+                float alpha = Core.settings.getInt("死亡爆炸透明度") / 100f;
+                if (type.flying && type.createWreck) {
+                    Draw.color(Items.blastCompound.color, alpha);
 
-                        float radius = Mathf.pow(unit.hitSize, 0.94f) * 1.25f;
-                        Fill.circle(unit.x, unit.y, radius);
+                    float radius = Mathf.pow(unit.hitSize, 0.94f) * 1.25f;
+                    Fill.circle(unit.x, unit.y, radius);
 
-                        if(Core.settings.getBool("显示单位坠落伤害数值")){
-                            int amount = PublicStaticVoids.completeDamage(unit.team, unit.x, unit.y, radius);
-                            float damage = Mathf.pow(unit.hitSize, 0.75f) * type.crashDamageMultiplier * 5f * state.rules.unitCrashDamage(unit.team);
+                    if(show){
+                        int amount = PublicStaticVoids.completeDamage(unit.team, unit.x, unit.y, radius);
+                        float damage = Mathf.pow(unit.hitSize, 0.75f) * type.crashDamageMultiplier * 5f * state.rules.unitCrashDamage(unit.team);
 
-                            showValue(twoDig(damage) + (amount == 0 ? "" : ("*" + amount + "=" + twoDig(damage * amount))), Items.blastCompound.color, unit.x, unit.y + radius + 2);
-                        }
+                        showValue(twoDig(damage) + (amount == 0 ? "" : ("*" + amount + "=" + twoDig(damage * amount))), Items.blastCompound.color, unit.x, unit.y + radius + 2);
                     }
-                });
-            }, Core.settings.getInt("死亡爆炸透明度") / 100f);
+                }
+            }), Core.settings.getInt("死亡爆炸透明度") / 100f);
 
 
             Draw.reset();
         });
     }
 
+    public float getRadiusMulti(int size){
+        float cell = averageLength / 8;
+        float radius = size / 2f;
+
+        int min = Mathf.ceil(radius / cell);
+        int max = Mathf.ceil(radius * 1.414f / cell);
+
+        float total = 0;
+        float section = 0;
+
+        for (int i = min; i <= max; i++) {
+            float angle = Math.min((float) Math.acos(radius / (i * cell)), Mathf.pi / 4f);
+            total += (angle - section) / (Mathf.pi / 4f) * i;
+            section = angle;
+        }
+
+        return total;
+    }
+
     public float twoDig(float f){
         return Mathf.round(f * 100) / 100f;
     }
 
-    public void showSplashDamage(float x, float y, float radius, float damage, Team team) {
+    public void showSplashDamage(float x, float y, float radius, float damage, Team team, float buildMulti) {
         if (Core.settings.getBool("详细溅射范围")) {
             Draw.color(Items.pyratite.color);
             Lines.circle(x, y, radius);
             Draw.reset();
 
-            drawDetailedSplashDamage(World.toTile(x), World.toTile(y), radius / tilesize, damage, team);
+            drawDetailedSplashDamage(World.toTile(x), World.toTile(y), radius / tilesize, damage * buildMulti, team);
         } else {
             showCompleteSplashDamage(x, y, radius);
         }
@@ -217,6 +252,15 @@ public class ShowShowSheRange {
             Draw.color(Items.blastCompound.color);
             Fill.square(in.x, in.y, in.block.size * 4);
             Draw.reset();
+
+            if(Core.settings.getBool("显示伤害数值")) {
+                float value = damage * Math.min((in.block.size), baseRadius * 0.4f);
+
+                int floor = Mathf.floor(value);
+                float decimal = value - floor;
+                showValue(formatAmount(floor, decimal), Color.white, in.x, in.y - 2, 0.75f);
+            }
+
             return;
         }
 
@@ -272,6 +316,14 @@ public class ShowShowSheRange {
 
             Draw.color(Color.white, Items.blastCompound.color, a);
             Fill.square(tile.worldx(), tile.worldy(), 4);
+
+            if(Core.settings.getBool("显示伤害数值")) {
+                float value = e.value;
+
+                int floor = Mathf.floor(value);
+                float decimal = value - floor;
+                showValue(formatAmount(floor, decimal), Color.white, tile.worldx(), tile.worldy() - 2, 0.75f);
+            }
         }
         Draw.reset();
     }
@@ -322,11 +374,11 @@ public class ShowShowSheRange {
         Draw.reset();
     }
 
-    public void showValue(String value, Color color, float x, float y){
+    public void showValue(String value, Color color, float x, float y, float scl){
         GlyphLayout layout = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
         boolean ints = font.usesIntegerPositions();
         font.setUseIntegerPositions(false);
-        font.getData().setScale(1.5f / 4f / Scl.scl(1f));
+        font.getData().setScale(scl / 4f / Scl.scl(1f));
         layout.setText(font, value);
 
         font.setColor(color);
@@ -340,21 +392,41 @@ public class ShowShowSheRange {
         Pools.free(layout);
     }
 
+
+    public void showValue(String value, Color color, float x, float y){
+        showValue(value, color, x, y, 1.5f);
+    }
+
     public void resetPotentialBullet() {
+        Pools.freeAll(potentialBullets);
         potentialBullets.clear();
 
-        //todo 限制在镜头内?
-        Groups.bullet.each(bullet -> {
-            potentialBullets.add(new PotentialBullet(bullet.x, bullet.y, bullet.rotation(), bullet.type, bullet.id, bullet.team));
-        });
+        Groups.bullet.each(bullet -> limit(bullet.x, bullet.y, bullet.rotation(), bullet.id,  bullet.team, bullet.type));
 
-        Groups.unit.each(unit -> {
-            UnitType type = unit.type;
-            type.weapons.each(weapon -> {
-                if (weapon.shootOnDeath)
-                    potentialBullets.add(new PotentialBullet(unit.x, unit.y, unit.rotation(), weapon.bullet, unit.id, unit.team));
-            });
-        });
+        Groups.unit.each(unit -> unit.type.weapons.each(weapon -> {
+            if (weapon.shootOnDeath){
+                limit(unit.x, unit.y, unit.rotation(), unit.id, unit.team, weapon.bullet);
+            }
+        }));
+    }
+
+    public void limit(float x, float y, float rotation, int id, Team team, BulletType type){
+        if(!bulletTypeRange.containsKey(type)){
+            float range = Math.max(type.splashDamageRadius, type.suppressionRange);
+            float frags = type.fragBullet != null ? type.fragBullet.lifetime * type.fragBullet.speed : -1;
+            float lightings = type.lightning > 0 ? (type.lightningLength + type.lightningLengthRand) / 2 * averageLength : -1;
+            range = Math.max(Math.max(range, frags), lightings);
+
+            bulletTypeRange.put(type, range);
+        }
+
+        float range = bulletTypeRange.get(type);
+        if(range > 0 && Tmp.r2.set(Tmp.r1).grow(range).contains(x, y)){
+            PotentialBullet b = Pools.obtain(PotentialBullet.class, PotentialBullet::new);
+            b.set(x, y, rotation, type, id, team);
+
+            potentialBullets.add(b);
+        }
     }
 
 
@@ -385,6 +457,9 @@ public class ShowShowSheRange {
         public long id;
         public Team team;
 
+        public PotentialBullet(){
+        }
+
         public PotentialBullet(float x, float y, float rotation, BulletType type, long id, Team team) {
             this.x = x;
             this.y = y;
@@ -392,6 +467,34 @@ public class ShowShowSheRange {
             this.type = type;
             this.id = id;
             this.team = team;
+        }
+
+        public void set(float x, float y, float rotation, BulletType type, long id, Team team) {
+            this.x = x;
+            this.y = y;
+            this.rotation = rotation;
+            this.type = type;
+            this.id = id;
+            this.team = team;
+        }
+    }
+
+    public String formatAmount(long number, float decimal){
+        long mag = Math.abs(number);
+        String sign = number < 0 ? "-" : "";
+
+        if(mag >= 1_000_000_000){
+            return sign + Strings.fixed(mag / 1_000_000_000f, 1) + "[gray]" + billions + "[]";
+        }else if(mag >= 1_000_000){
+            return sign + Strings.fixed(mag / 1_000_000f, 1) + "[gray]" + millions + "[]";
+        }else if(mag >= 10_000){
+            return number / 1000 + "[gray]" + thousands + "[]";
+        }else if(mag >= 1000){
+            return sign + Strings.fixed(mag / 1000f, 1) + "[gray]" + thousands + "[]";
+        }else if(mag >= 10){
+            return Mathf.ceil(number + decimal) + "";
+        }else {
+            return decimal == 0 ? number + "" : sign + Strings.fixed(mag + decimal, 1) + "[]";
         }
     }
 }

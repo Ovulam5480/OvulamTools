@@ -20,6 +20,7 @@ import arc.util.*;
 import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.core.World;
+import mindustry.entities.Damage;
 import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
 import mindustry.game.EventType;
@@ -185,7 +186,7 @@ public class ButtonsTable {
                 }
 
                 public void drawPaths(IntSeq tileSeq, Color color, float thick, float offset) {
-                    Draw.color(color);
+                    Draw.color(color, Mathf.sin(30, 0.4f) + 0.6f);
                     int lastTile = -1;
 
                     Lines.stroke(thick);
@@ -206,7 +207,7 @@ public class ButtonsTable {
                         } else if (lastTile == -1 && containTo) {
                             Lines.square(x1, y1, 7, 45);
                         } else if (containFrom && containTo) {
-                            Lines.dashLine(x1, y1, x2, y2, (int) Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)) / 8 * 2);
+                            Lines.line(x1, y1, x2, y2, false);
                         }
 
                         lastTile = tile;
@@ -282,28 +283,24 @@ public class ButtonsTable {
                 public void init() {
                     Events.on(EventType.WorldLoadEvent.class, e -> dangerous.clear());
 
-                    Events.on(EventType.BlockBuildEndEvent.class, e -> {
-                        if (!e.breaking) return;
-                        if (state.rules.logicUnitBuild && e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
-                            if (e.unit.isPlayer())
-                                Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于" + "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
-                            if (net.server()) {
-                                lb.remove();
-                                Call.sendChatMessage("已移除该逻辑");
-                            }
-                        }
-
-                        if (state.rules.reactorExplosions && e.tile.build instanceof NuclearReactor.NuclearReactorBuild nr) {
-                            for (CoreBlock.CoreBuild core : state.teams.get(player.team()).cores) {
-                                float dst = core.dst(e.tile);
-                                if (dst < 22 * 8) {
-                                    dangerous.add(nr);
-                                    Call.sendChatMessage(nr.lastAccessed + "[white]建造了位于" + "(" + nr.tileX() + "," + nr.tileY() + ")" + "的危险钍反");
-                                    break;
-                                }
-                            }
-                        }
-                    });
+//                    Events.on(EventType.BlockBuildEndEvent.class, e -> {
+//                        if (!e.breaking) return;
+//                        if (state.rules.logicUnitBuild && e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
+//                            if (e.unit.isPlayer())
+//                                Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于" + "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
+//                        }
+//
+//                        if (state.rules.reactorExplosions && e.tile.build instanceof NuclearReactor.NuclearReactorBuild nr) {
+//                            for (CoreBlock.CoreBuild core : state.teams.get(player.team()).cores) {
+//                                float dst = core.dst(e.tile);
+//                                if (dst < 22 * 8) {
+//                                    dangerous.add(nr);
+//                                    Call.sendChatMessage(nr.lastAccessed + "[white]建造了位于" + "(" + nr.tileX() + "," + nr.tileY() + ")" + "的危险钍反");
+//                                    break;
+//                                }
+//                            }
+//                        }
+//                    });
 
                     check = () -> {
                         state.teams.get(player.team()).buildings.each(b -> {
@@ -542,6 +539,50 @@ public class ButtonsTable {
                     checkOff = () -> types.each(t -> t.playerControllable = false);
                 }
             },
+
+//            new FunctionButton("111", Icon.link) {
+//                float total;
+//                int times;
+//                final Interval interval = new Interval();
+//                final UnitType type = UnitTypes.oct;
+//                Unit poly;
+//
+//                @Override
+//                public void init() {
+//                    check = () -> total = times = 0;
+//                    checkOff = () -> Log.info("--------------");
+//
+//                    update = () -> {
+//                        Building building = world.build(100, 100);
+//                        if(building == null){
+//                            checked = false;
+//                            return;
+//                        }
+//
+//                        if(interval.get(15f)){
+//                            poly = type.create(Team.crux);
+//                            poly.set(building);
+//                            poly.stack.set(Items.surgeAlloy, type.itemCapacity);
+//                            poly.add();
+//
+//                            float radius = Mathf.pow(poly.hitSize, 0.94f) * 1.25f;
+//
+//                            int amount = PublicStaticVoids.completeDamage(poly.team, poly.x, poly.y, radius);
+//                            float destory = Mathf.pow(poly.hitSize, 0.75f) * type.crashDamageMultiplier * 5f * state.rules.unitCrashDamage(poly.team);
+//
+//                            poly.destroy();
+//
+//                            float damage = building.maxHealth - building.health - amount * destory;
+//                            if(!Mathf.equal(damage, 0, 0.1f)) {
+//                                total += damage;
+//                                times++;
+//                                Log.info(total / times);
+//                            }
+//                            building.health = building.maxHealth;
+//                        }
+//                    };
+//                }
+//            },
     };
 
     float size = 46;
