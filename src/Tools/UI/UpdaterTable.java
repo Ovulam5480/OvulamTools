@@ -24,7 +24,7 @@ public class UpdaterTable{
 
     public UpdaterTable(Table parents){
         parents.table(t -> {
-            t.button(Icon.download, this::githubImportJavaMod).left().row();
+            t.button(Icon.download, this::githubImportJavaMod).disabled(i -> modImportProgress > 0).left().row();
             t.add(bar).height(32).growX();
         }).left();
         hasBuild = true;
@@ -47,7 +47,7 @@ public class UpdaterTable{
 
     private void handleMod(Http.HttpResponse result){
         try{
-            Fi file = tmpDirectory.child("Ovulam5480/OvulamTools".replace("/", "") + ".zip");
+            Fi file = tmpDirectory.child("OvulamTools.zip");
             long len = result.getContentLength();
             Floatc cons = len <= 0 ? f -> {} : p -> modImportProgress = p;
 
@@ -58,13 +58,8 @@ public class UpdaterTable{
             var mod = mods.importMod(file);
             mod.setRepo("Ovulam5480/OvulamTools");
             file.delete();
-            Core.app.post(() -> {
-                try{
-                    ui.announce("更新成功, 重启游戏有效", 3f);
-                }catch(Throwable e){
-                    fail(e);
-                }
-            });
+
+            ui.announce("更新成功, 重启游戏有效", 3f);
         }catch(Throwable e){
             fail(e);
         }

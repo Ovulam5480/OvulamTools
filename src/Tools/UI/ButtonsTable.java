@@ -19,6 +19,7 @@ import arc.struct.*;
 import arc.util.*;
 import mindustry.Vars;
 import mindustry.content.*;
+import mindustry.core.GameState;
 import mindustry.core.World;
 import mindustry.entities.Damage;
 import mindustry.entities.units.BuildPlan;
@@ -539,6 +540,21 @@ public class ButtonsTable {
                     checkOff = () -> types.each(t -> t.playerControllable = false);
                 }
             },
+
+            new FunctionButton("暂停器", Icon.pause){
+                boolean shouldPause ;
+                @Override
+                public void init() {
+                    update = () -> {
+                        if(shouldPause){
+                            state.set(GameState.State.paused);
+                            shouldPause = false;
+                        }else if (state.isGame() && !state.isPaused()){
+                            shouldPause = true;
+                        }
+                    };
+                }
+            }
 
 //            new FunctionButton("111", Icon.link) {
 //                float total;
