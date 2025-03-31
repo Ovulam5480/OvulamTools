@@ -51,11 +51,13 @@ import mindustry.world.blocks.units.UnitAssembler;
 
 import static arc.Core.camera;
 import static mindustry.Vars.*;
+import static mindustry.Vars.player;
 
 public class ButtonsTable {
     private final FunctionButton[] functionButtons = new FunctionButton[]{
             new FunctionButton("让玩家单位转圈圈", Icon.rotate, () -> {
                 Unit unit = player.unit();
+                if (unit == null) return;
                 unit.rotation = unit.type.rotateSpeed * unit.speedMultiplier * Time.time * 1.2f;
             }),
 
@@ -78,11 +80,11 @@ public class ButtonsTable {
                     });
 
                     update = () -> {
-                        Unit player = Vars.player.unit();
-                        if (player == null) return;
+                        Unit unit = player.unit();
+                        if (unit == null) return;
 
-                        pos.set(player.x, player.y);
-                        float speed = player.speed() * 1.2f;
+                        pos.set(unit.x, unit.y);
+                        float speed = unit.speed() * 1.2f;
 
                         if (mobile) {
                             //todo 待测试?
@@ -97,14 +99,14 @@ public class ButtonsTable {
                         }
                         pos.add(movement);
 
-                        if (player.canPass(World.toTile(pos.x), World.toTile(pos.y))) {
-                            player.vel.set(movement.x, movement.y);
+                        if (unit.canPass(World.toTile(pos.x), World.toTile(pos.y))) {
+                            unit.vel.set(movement.x, movement.y);
 
                             if (!movement.isZero()) {
-                                float a = movement.angle() - player.rotation;
-                                player.rotation(movement.angle());
+                                float a = movement.angle() - unit.rotation;
+                                unit.rotation(movement.angle());
 
-                                for (WeaponMount mount : player.mounts) {
+                                for (WeaponMount mount : unit.mounts) {
                                     mount.rotation -= a;
                                 }
                             }
@@ -264,6 +266,8 @@ public class ButtonsTable {
 
             new FunctionButton("拆除地图上所有的石头", Icon.spray, () -> {
                 Unit unit = player.unit();
+                if (unit == null) return;
+
                 world.tiles.eachTile(tile -> {
                     Block block = tile.block();
                     if (block instanceof Prop && block.breakable) {
@@ -273,6 +277,7 @@ public class ButtonsTable {
             }, null),
 
             new FunctionButton("拆除地图上所有的废墟", Icon.spray, () -> {
+                if (player.unit() == null) return;
                 state.teams.get(Team.derelict).buildings.each(b -> player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY())));
             }, null),
 
@@ -304,6 +309,8 @@ public class ButtonsTable {
 //                    });
 
                     check = () -> {
+                        if(player.unit() == null)return;
+
                         state.teams.get(player.team()).buildings.each(b -> {
                             if (b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
                                     && cb.lastConfig instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
@@ -446,11 +453,12 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     update = () -> {
+                        if(unit() == null)return;
+
                         if (!player.within(playerPos, tilesize * 14) && !player.within(checkedPos, tilesize)) {
                             playerPos.set(unit().x, unit().y);
                             pr = player.unit().rotation;
                         }
-
 
                         if (!checkedPos.isZero() && !unit().within(checkedPos, 0.01f)) {
                             if (!unit().type.canBoost && !unit().type.flying) {
@@ -479,7 +487,9 @@ public class ButtonsTable {
                         }
                     };
 
-                    checkOff = checkedPos::setZero;
+                    check = checkedPos::setZero;
+                    checkOff = () -> {};
+
                     Events.on(EventType.WorldLoadEvent.class, e -> checkedPos.setZero());
 
                     Events.run(EventType.Trigger.draw, () -> {

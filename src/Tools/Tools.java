@@ -10,11 +10,15 @@ import arc.files.Fi;
 import arc.math.Mathf;
 import arc.util.Http;
 import arc.util.Log;
+import arc.util.Time;
 import arc.util.serialization.Jval;
 import mindustry.Vars;
 import mindustry.content.Blocks;
+import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
 import mindustry.core.Version;
+import mindustry.entities.Damage;
+import mindustry.entities.bullet.BulletType;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
 import mindustry.game.Team;
@@ -25,6 +29,8 @@ import mindustry.mod.Mod;
 import mindustry.mod.Mods;
 import mindustry.ui.Fonts;
 import mindustry.ui.dialogs.SettingsMenuDialog;
+import mindustry.world.Tile;
+import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.payloads.BuildPayload;
 import mindustry.world.blocks.payloads.PayloadConveyor;
 import mindustry.world.blocks.payloads.UnitPayload;
@@ -107,6 +113,8 @@ public class Tools extends Mod{
         }
 
         biabiabia();
+        //Events.on(EventType.WorldLoadEvent.class, e -> Time.run(10, this::dadwa));
+        //Time.run(1200f, this::dadwa);
     }
 
     public Mods.LoadedMod thisMod(){
@@ -128,6 +136,18 @@ public class Tools extends Mod{
             }
         }
         return 0;
+    }
+
+    public void dadwa(){
+        for (int i = 570; i < 600; i++) {
+            for (int j = 170; j < 200; j++) {
+                Unit unit = UnitTypes.merui.create(Team.crux);
+                unit.set(i * 8, j * 8);
+                unit.apply(StatusEffects.unmoving, 10000000);
+                unit.apply(StatusEffects.disarmed, 10000000);
+                unit.add();
+            }
+        }
     }
 
     public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){

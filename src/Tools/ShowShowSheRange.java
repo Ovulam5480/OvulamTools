@@ -14,6 +14,7 @@ import arc.struct.IntFloatMap;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Align;
+import arc.util.Log;
 import arc.util.Strings;
 import arc.util.Tmp;
 import arc.util.pooling.Pools;
@@ -26,6 +27,7 @@ import mindustry.entities.abilities.SuppressionFieldAbility;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType;
 import mindustry.game.Team;
+import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -43,16 +45,16 @@ import static mindustry.core.UI.thousands;
 
 public class ShowShowSheRange {
     private static final IntFloatMap damages = new IntFloatMap();
-    public FrameBuffer buffer = new FrameBuffer();
-
-    public Seq<PotentialBullet> potentialBullets = new Seq<>();
-    public ObjectMap<BulletType, Float> bulletTypeRange = new ObjectMap<>();
-
-    public Rand rand = new Rand();
-    public Font font = Fonts.outline;
+    private static final IntFloatMap totalDamages = new IntFloatMap();
+    private static final Seq<Building> destoryed = new Seq<>();
 
     private final float averageLength = 0.97981f * 15;
     private final float[] radiusMulti = new float[16];
+    public FrameBuffer buffer = new FrameBuffer();
+    public Seq<PotentialBullet> potentialBullets = new Seq<>();
+    public ObjectMap<BulletType, Float> bulletTypeRange = new ObjectMap<>();
+    public Rand rand = new Rand();
+    public Font font = Fonts.outline;
 
 
     public ShowShowSheRange() {
@@ -60,13 +62,11 @@ public class ShowShowSheRange {
             radiusMulti[i] = getRadiusMulti(i + 1);
         }
 
-        Events.run(EventType.Trigger.update, () -> {
-            camera.bounds(Tmp.r1);
-            resetPotentialBullet();
-        });
-
         Events.run(EventType.Trigger.draw, () -> {
             buffer.resize(Core.graphics.getWidth(), Core.graphics.getHeight());
+
+            camera.bounds(Tmp.r1);
+            resetPotentialBullet();
 
             drawRange(() -> potentialBullets.each(potentialBullet -> {
                 if (potentialBullet.type.splashDamageRadius > 0) {
@@ -105,56 +105,69 @@ public class ShowShowSheRange {
             }, Core.settings.getInt("压制范围透明度") / 100f);
 
 
-            drawRange(() -> {
-                Groups.unit.each(unit -> {
-                    RepairFieldAbility repairField = (RepairFieldAbility) unit.type.abilities.find(a -> a instanceof RepairFieldAbility);
-                    if (repairField != null) {
-                        showRepairField(unit.x, unit.y, repairField.range);
-                    }
-                    RepairBeamWeapon repairBeam = (RepairBeamWeapon) unit.type.weapons.find(a -> a instanceof RepairBeamWeapon);
-                    if (repairBeam != null) {
-                        showRepairBeam(unit.x, unit.y, repairBeam.range());
-                    }
-                });
-
-            }, Core.settings.getInt("治疗范围透明度") / 100f);
+            drawRange(() -> Groups.unit.each(unit -> {
+                RepairFieldAbility repairField = (RepairFieldAbility) unit.type.abilities.find(a -> a instanceof RepairFieldAbility);
+                if (repairField != null) {
+                    showRepairField(unit.x, unit.y, repairField.range);
+                }
+                RepairBeamWeapon repairBeam = (RepairBeamWeapon) unit.type.weapons.find(a -> a instanceof RepairBeamWeapon);
+                if (repairBeam != null) {
+                    showRepairBeam(unit.x, unit.y, repairBeam.range());
+                }
+            }), Core.settings.getInt("治疗范围透明度") / 100f);
 
 
             drawRange(() -> Groups.unit.each(unit -> {
-                if(unit.spawnedByCore)return;
+                if (unit.spawnedByCore) return;
                 UnitType type = unit.type;
 
                 boolean show = Core.settings.getBool("显示伤害数值");
+                boolean detail = Core.settings.getBool("详细溅射范围");
 
-                if (type.itemCapacity > 0 && unit.hasItem()) {
+                if (unit.hasItem()) {
                     Item item = unit.item();
                     int amount = unit.stack().amount;
 
                     if (item.explosiveness > 0) {
                         float explosiveness = 2 + item.explosiveness * amount * 1.53f;
-                        int waves = explosiveness <= 2 ? 0 : Mathf.clamp((int) (explosiveness / 11), 1, 25);
+                        int waves = Mathf.clamp((int) (explosiveness / 11), 1, 25);
                         float radius = Mathf.clamp((unit.bounds() + type.legLength / 1.7f) / 2f + explosiveness, 0, 50f);
+                        float damagePerWave = explosiveness / 2f;
+                        float radiusMulti = radius / 8 * 0.4f;
 
-                        showCompleteSplashDamage(unit.x, unit.y, radius);
-                        if(show){
-                            float damagePerWave = explosiveness / 2f;
+                        if (detail) {
+                            showLineSplashDamage(unit.x, unit.y, radius);
 
-                            String value;
-                            float radiusMulti = radius / 8 * 0.4f;
+//                            if(show) {
+//                                totalDamages.clear();
+//
+//                                for (int i = 0; i < waves; i++) {
+//                                    countSplashDamage(World.toTile(unit.x), World.toTile(unit.y), ((i + 1f) / waves) * radiusMulti, damagePerWave, unit.team);
+//                                    damages.forEach(e -> totalDamages.put(e.key, e.value + totalDamages.get(e.key, 0)));
+//                                }
+//
+//                                drawDamages(totalDamages, damagePerWave);
+//                            }
+                        } else {
+                            showCompleteSplashDamage(unit.x, unit.y, radius);
 
-                            if(unit.buildOn() != null && unit.buildOn().team != unit.team){
-                                float total = 0;
-                                for (int i = 0; i < waves; i++) {
-                                    total += Math.min(((i + 1f) / waves) * radiusMulti, unit.buildOn().block.size) * damagePerWave;
+                            if (show) {
+                                String value;
+
+                                if (unit.buildOn() != null && unit.buildOn().team != unit.team) {
+                                    float total = 0;
+                                    for (int i = 0; i < waves; i++) {
+                                        total += Math.min(((i + 1f) / waves) * radiusMulti, unit.buildOn().block.size) * damagePerWave;
+                                    }
+
+                                    value = twoDig(total) + "";
+                                } else {
+                                    float wavesMulti = (waves + 1) / 2f * radiusMulti;
+                                    value = twoDig(damagePerWave) + (waves == 1 ? "" : ("*(" + waves + "~" + wavesMulti + ")" + "=" + twoDig(damagePerWave * wavesMulti)));
                                 }
 
-                                value = twoDig(total) + "";
-                            }else {
-                                float wavesMulti = (waves + 1) / 2f * radiusMulti;
-                                value = twoDig(damagePerWave) + (waves == 1 ? "" : ("*(" + waves + "~" + wavesMulti + ")" + "=" + twoDig(damagePerWave * wavesMulti)));
+                                showValue(value, Items.pyratite.color, unit.x, unit.y + radius + 2);
                             }
-
-                            showValue(value, Items.pyratite.color, unit.x, unit.y + radius + 2);
                         }
                     }
 
@@ -165,20 +178,22 @@ public class ShowShowSheRange {
 
                         rand.setSeed(unit.id);
                         showLightning(unit.x, unit.y, length, 1, lightingAmount);
-                        if(show){
+
+                        if (show) {
                             float damage = 3 + Mathf.pow(power, 0.35f);
                             float total = twoDig(lightingAmount * damage * length);
 
                             String value;
 
-                            if(unit.buildOn() != null && unit.buildOn().team != unit.team){
+                            if (unit.buildOn() != null && unit.buildOn().team != unit.team) {
                                 value = twoDig(radiusMulti[unit.buildOn().block.size - 1] * lightingAmount * damage) + "";
-                            }else {
+                            } else {
                                 value = lightingAmount + "*" + twoDig(damage) + "*" + length + "=" + total;
                             }
 
                             showValue(value, Items.surgeAlloy.color, unit.x, unit.y + averageLength * length + 2);
                         }
+
                     }
                 }
 
@@ -187,9 +202,9 @@ public class ShowShowSheRange {
                     Draw.color(Items.blastCompound.color, alpha);
 
                     float radius = Mathf.pow(unit.hitSize, 0.94f) * 1.25f;
-                    Fill.circle(unit.x, unit.y, radius);
+                    Lines.circle(unit.x, unit.y, radius);
 
-                    if(show){
+                    if (show) {
                         int amount = PublicStaticVoids.completeDamage(unit.team, unit.x, unit.y, radius);
                         float damage = Mathf.pow(unit.hitSize, 0.75f) * type.crashDamageMultiplier * 5f * state.rules.unitCrashDamage(unit.team);
 
@@ -203,7 +218,7 @@ public class ShowShowSheRange {
         });
     }
 
-    public float getRadiusMulti(int size){
+    public float getRadiusMulti(int size) {
         float cell = averageLength / 8;
         float radius = size / 2f;
 
@@ -222,17 +237,16 @@ public class ShowShowSheRange {
         return total;
     }
 
-    public float twoDig(float f){
+    public float twoDig(float f) {
         return Mathf.round(f * 100) / 100f;
     }
 
     public void showSplashDamage(float x, float y, float radius, float damage, Team team, float buildMulti) {
         if (Core.settings.getBool("详细溅射范围")) {
-            Draw.color(Items.pyratite.color);
-            Lines.circle(x, y, radius);
-            Draw.reset();
+            showLineSplashDamage(x, y, radius);
 
-            drawDetailedSplashDamage(World.toTile(x), World.toTile(y), radius / tilesize, damage * buildMulti, team);
+            countSplashDamage(World.toTile(x), World.toTile(y), radius / tilesize, damage * buildMulti, team);
+            drawDamages(damages, damage * buildMulti);
         } else {
             showCompleteSplashDamage(x, y, radius);
         }
@@ -240,31 +254,31 @@ public class ShowShowSheRange {
 
     public void showCompleteSplashDamage(float x, float y, float radius) {
         Draw.color(Items.pyratite.color);
-
         Fill.circle(x, y, radius);
-
         Draw.reset();
     }
 
-    public void drawDetailedSplashDamage(int tx, int ty, float baseRadius, float damage, Team team) {
+    public void showLineSplashDamage(float x, float y, float radius) {
+        Draw.color(Items.pyratite.color);
+        Lines.circle(x, y, radius);
+        Draw.reset();
+    }
+
+    public void countSplashDamage(int tx, int ty, float baseRadius, float damage, Team team) {
+        damages.clear();
+
         var in = world.build(tx, ty);
         if (in != null && in.team != team && in.block.size > 1 && in.health > damage) {
             Draw.color(Items.blastCompound.color);
             Fill.square(in.x, in.y, in.block.size * 4);
             Draw.reset();
 
-            if(Core.settings.getBool("显示伤害数值")) {
-                float value = damage * Math.min((in.block.size), baseRadius * 0.4f);
+            float value = damage * Math.min((in.block.size), baseRadius * 0.4f);
 
-                int floor = Mathf.floor(value);
-                float decimal = value - floor;
-                showValue(formatAmount(floor, decimal), Color.white, in.x, in.y - 2, 0.75f);
-            }
-
+            int p = Point2.pack(in.tileX(), in.tileY());
+            damages.put(p, value);
             return;
         }
-
-        damages.clear();
 
         float radius = Math.min(baseRadius, 100), rad2 = radius * radius;
         int rays = Mathf.ceil(radius * 2 * Mathf.pi);
@@ -306,22 +320,25 @@ public class ShowShowSheRange {
                 }
             }
         }
+    }
 
-        //apply damage
+    public void drawDamages(IntFloatMap damages, float initialDamage) {
+        Draw.z(Layer.shields + 1f);
         for (var e : damages) {
             int cx = Point2.x(e.key), cy = Point2.y(e.key);
             Tile tile = world.tile(cx, cy);
 
-            float a = Mathf.curve(e.value / damage, 0.375f, 1);
+            float a = Mathf.curve(e.value / initialDamage, 0.375f, 1);
 
             Draw.color(Color.white, Items.blastCompound.color, a);
             Fill.square(tile.worldx(), tile.worldy(), 4);
 
-            if(Core.settings.getBool("显示伤害数值")) {
+            if (Core.settings.getBool("显示伤害数值")) {
                 float value = e.value;
 
                 int floor = Mathf.floor(value);
                 float decimal = value - floor;
+
                 showValue(formatAmount(floor, decimal), Color.white, tile.worldx(), tile.worldy() - 2, 0.75f);
             }
         }
@@ -342,7 +359,6 @@ public class ShowShowSheRange {
         Draw.color(Items.surgeAlloy.color);
 
         Lines.dashCircle(x, y, length * averageLength);
-        Draw.color(Items.surgeAlloy.color);
 
         float totalLength = (lengthRand + length) * averageLength;
         Lines.circle(x, y, totalLength);
@@ -374,7 +390,7 @@ public class ShowShowSheRange {
         Draw.reset();
     }
 
-    public void showValue(String value, Color color, float x, float y, float scl){
+    public void showValue(String value, Color color, float x, float y, float scl) {
         GlyphLayout layout = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
         boolean ints = font.usesIntegerPositions();
         font.setUseIntegerPositions(false);
@@ -393,7 +409,7 @@ public class ShowShowSheRange {
     }
 
 
-    public void showValue(String value, Color color, float x, float y){
+    public void showValue(String value, Color color, float x, float y) {
         showValue(value, color, x, y, 1.5f);
     }
 
@@ -401,17 +417,17 @@ public class ShowShowSheRange {
         Pools.freeAll(potentialBullets);
         potentialBullets.clear();
 
-        Groups.bullet.each(bullet -> limit(bullet.x, bullet.y, bullet.rotation(), bullet.id,  bullet.team, bullet.type));
+        Groups.bullet.each(bullet -> limit(bullet.x, bullet.y, bullet.rotation(), bullet.id, bullet.team, bullet.type));
 
         Groups.unit.each(unit -> unit.type.weapons.each(weapon -> {
-            if (weapon.shootOnDeath){
+            if (weapon.shootOnDeath) {
                 limit(unit.x, unit.y, unit.rotation(), unit.id, unit.team, weapon.bullet);
             }
         }));
     }
 
-    public void limit(float x, float y, float rotation, int id, Team team, BulletType type){
-        if(!bulletTypeRange.containsKey(type)){
+    public void limit(float x, float y, float rotation, int id, Team team, BulletType type) {
+        if (!bulletTypeRange.containsKey(type)) {
             float range = Math.max(type.splashDamageRadius, type.suppressionRange);
             float frags = type.fragBullet != null ? type.fragBullet.lifetime * type.fragBullet.speed : -1;
             float lightings = type.lightning > 0 ? (type.lightningLength + type.lightningLengthRand) / 2 * averageLength : -1;
@@ -421,7 +437,7 @@ public class ShowShowSheRange {
         }
 
         float range = bulletTypeRange.get(type);
-        if(range > 0 && Tmp.r2.set(Tmp.r1).grow(range).contains(x, y)){
+        if (range > 0 && Tmp.r2.set(Tmp.r1).grow(range).contains(x, y)) {
             PotentialBullet b = Pools.obtain(PotentialBullet.class, PotentialBullet::new);
             b.set(x, y, rotation, type, id, team);
 
@@ -450,6 +466,25 @@ public class ShowShowSheRange {
         });
     }
 
+    public String formatAmount(long number, float decimal) {
+        long mag = Math.abs(number);
+        String sign = number < 0 ? "-" : "";
+
+        if (mag >= 1_000_000_000) {
+            return sign + Strings.fixed(mag / 1_000_000_000f, 1) + "[gray]" + billions + "[]";
+        } else if (mag >= 1_000_000) {
+            return sign + Strings.fixed(mag / 1_000_000f, 1) + "[gray]" + millions + "[]";
+        } else if (mag >= 10_000) {
+            return number / 1000 + "[gray]" + thousands + "[]";
+        } else if (mag >= 1000) {
+            return sign + Strings.fixed(mag / 1000f, 1) + "[gray]" + thousands + "[]";
+        } else if (mag >= 10) {
+            return Mathf.ceil(number + decimal) + "";
+        } else {
+            return decimal == 0 ? number + "" : sign + Strings.fixed(mag + decimal, 1) + "[]";
+        }
+    }
+
     public class PotentialBullet {
         public float x, y;
         public float rotation;
@@ -457,7 +492,7 @@ public class ShowShowSheRange {
         public long id;
         public Team team;
 
-        public PotentialBullet(){
+        public PotentialBullet() {
         }
 
         public PotentialBullet(float x, float y, float rotation, BulletType type, long id, Team team) {
@@ -476,25 +511,6 @@ public class ShowShowSheRange {
             this.type = type;
             this.id = id;
             this.team = team;
-        }
-    }
-
-    public String formatAmount(long number, float decimal){
-        long mag = Math.abs(number);
-        String sign = number < 0 ? "-" : "";
-
-        if(mag >= 1_000_000_000){
-            return sign + Strings.fixed(mag / 1_000_000_000f, 1) + "[gray]" + billions + "[]";
-        }else if(mag >= 1_000_000){
-            return sign + Strings.fixed(mag / 1_000_000f, 1) + "[gray]" + millions + "[]";
-        }else if(mag >= 10_000){
-            return number / 1000 + "[gray]" + thousands + "[]";
-        }else if(mag >= 1000){
-            return sign + Strings.fixed(mag / 1000f, 1) + "[gray]" + thousands + "[]";
-        }else if(mag >= 10){
-            return Mathf.ceil(number + decimal) + "";
-        }else {
-            return decimal == 0 ? number + "" : sign + Strings.fixed(mag + decimal, 1) + "[]";
         }
     }
 }

@@ -11,6 +11,7 @@ import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
+import arc.util.Log;
 import arc.util.Time;
 import arc.util.Tmp;
 import mindustry.Vars;
@@ -144,6 +145,11 @@ public class ShortcutsSchematicsTable {
                 button = schematicsTable.button(Icon.add, Styles.clearNoneTogglei, () -> schematicsConfigDialog.show(currentCategory, j)).size(46).group(group).name(i + "").get();
             } else {
                 String[] parts = schematicCode.split("_");
+                //todo 删除
+                if(parts.length <= 1){
+                    String s = parts[0];
+                    parts = Seq.with(s, "").toArray();
+                }
 
                 String name = parts[1];
                 UnlockableContent iconContent = null;
@@ -181,7 +187,7 @@ public class ShortcutsSchematicsTable {
                     }else if(editMode){
                         Vars.ui.showTextInput("修改蓝图名称", "@name", "", s -> {
                             schematic.tags.put("name", s);
-                            Core.settings.put("SchematicsFragment" + "-" + currentCategory + "-" + j, schematics.writeBase64(schematic));
+                            SchematicsConfigDialog.putConfig(name, schematic, currentCategory, j);
                             rebuild();
                         });
                     }else {
