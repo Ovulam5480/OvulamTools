@@ -1,11 +1,9 @@
 package Tools.UI;
 
-import arc.Core;
 import arc.files.Fi;
 import arc.func.Floatc;
 import arc.scene.ui.layout.Table;
 import arc.util.Http;
-import arc.util.Strings;
 import arc.util.io.Streams;
 import arc.util.serialization.Jval;
 import mindustry.gen.Icon;
@@ -13,7 +11,6 @@ import mindustry.graphics.Pal;
 import mindustry.ui.Bar;
 
 import static mindustry.Vars.*;
-import static mindustry.Vars.mods;
 
 public class UpdaterTable{
     private float modImportProgress;

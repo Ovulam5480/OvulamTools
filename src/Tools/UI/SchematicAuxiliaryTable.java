@@ -17,35 +17,29 @@ import arc.scene.ui.ImageButton;
 import arc.scene.ui.ScrollPane;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
-import arc.util.Log;
 import arc.util.Time;
 import arc.util.Tmp;
 import arc.util.serialization.Jval;
 import mindustry.Vars;
 import mindustry.core.UI;
 import mindustry.core.World;
-import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType;
 import mindustry.game.Schematic;
-import mindustry.game.Schematics;
-import mindustry.gen.*;
+import mindustry.gen.Building;
+import mindustry.gen.Icon;
+import mindustry.gen.Tex;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Pal;
 import mindustry.type.ItemSeq;
 import mindustry.type.ItemStack;
 import mindustry.ui.Styles;
 import mindustry.ui.dialogs.BaseDialog;
-import mindustry.world.Tile;
-import mindustry.world.blocks.ConstructBlock;
 import mindustry.world.blocks.storage.CoreBlock;
 
 import java.io.*;
-import java.lang.reflect.Type;
 import java.util.Objects;
-import java.util.Scanner;
 
 import static mindustry.Vars.*;
-import static mindustry.Vars.state;
 
 public class SchematicAuxiliaryTable {
     private final SchematicsSelectDialog selectDialog = new SchematicsSelectDialog("placers");
@@ -240,6 +234,7 @@ public class SchematicAuxiliaryTable {
 
     //全部蓝图调整
     public void addAdjustButtons(Table parents) {
+        parents.add().growX();
         parents.table(t -> {
             if (editorMode) {
                 t.table(adjust -> {

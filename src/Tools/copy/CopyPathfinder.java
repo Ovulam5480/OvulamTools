@@ -6,15 +6,13 @@ import arc.Events;
 import arc.func.Prov;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
-import arc.math.geom.Position;
 import arc.struct.IntQueue;
 import arc.struct.IntSeq;
 import arc.struct.Seq;
-import arc.util.Log;
 import arc.util.Nullable;
 import arc.util.TaskQueue;
 import arc.util.Time;
-import mindustry.core.World;
+import mindustry.Vars;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Building;
@@ -25,7 +23,6 @@ import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.meta.BlockFlag;
 
 import static mindustry.Vars.*;
-
 
 public class CopyPathfinder implements Runnable {
     public static final Seq<Prov<Flowfield>> fieldTypes = Seq.with(
@@ -69,7 +66,7 @@ public class CopyPathfinder implements Runnable {
     int[] tiles = new int[0];
 
 
-    Flowfield[][] cache;
+    Flowfield[] cache;
 
     Seq<Flowfield> threadList = new Seq<>(), mainList = new Seq<>();
 
@@ -82,6 +79,21 @@ public class CopyPathfinder implements Runnable {
 
     public CopyPathfinder() {
         clearCache();
+
+//        Font f = Fonts.outline;
+//        Events.run(EventType.Trigger.draw, () -> {
+//            Draw.z(Layer.fogOfWar+1);
+//            f.getData().setScale(0.1f);
+//            Flowfield path = Tools.copyPathfinder.getField(0);
+//            int[] values = path.hasComplete ? path.completeWeights : path.weights;
+//            if(values == null)return;
+//
+//            PublicStaticVoids.eachCameraTiles(tile -> {
+//                f.draw(PublicStaticVoids.formatAmount(values[world.packArray(tile.x, tile.y)]), tile.x * 8, tile.y * 8, Align.center);
+//            });
+//
+//            f.getData().setScale(1f);
+//        });
 
         Events.on(EventType.WorldLoadEvent.class, event -> {
             stop();
@@ -100,10 +112,10 @@ public class CopyPathfinder implements Runnable {
             }
 
             if (state.rules.waveTeam.needsFlowField()) {
-                preloadPath(getField(state.rules.waveTeam, costGround));
+                preloadPath(getField(costGround));
 
                 if (spawner.getSpawns().contains(t -> t.floor().isLiquid)) {
-                    preloadPath(getField(state.rules.waveTeam, costNaval));
+                    preloadPath(getField(costNaval));
                 }
 
             }
@@ -150,7 +162,7 @@ public class CopyPathfinder implements Runnable {
     }
 
     private void clearCache() {
-        cache = new Flowfield[256][5];
+        cache = new Flowfield[5];
     }
 
     /**
@@ -291,18 +303,18 @@ public class CopyPathfinder implements Runnable {
         }
     }
 
-    public Flowfield getField(Team team, int costType) {
-        if (cache[team.id][costType] == null) {
+    public Flowfield getField(int costType) {
+        if (cache[costType] == null) {
             Flowfield field = fieldTypes.get(0).get();
-            field.team = team;
+            field.team = Vars.state.rules.waveTeam;
             field.cost = costTypes.get(costType);
             field.targets.clear();
             field.getPositions(field.targets);
 
-            cache[team.id][costType] = field;
+            cache[costType] = field;
             queue.post(() -> registerPath(field));
         }
-        return cache[team.id][costType];
+        return cache[costType];
     }
 
     /**
@@ -316,42 +328,33 @@ public class CopyPathfinder implements Runnable {
             return tile;
         }
 
-        //if refresh rate is positive, queue a refresh
-        if (path.refreshRate > 0 && Time.timeSinceMillis(path.lastUpdateTime) > path.refreshRate) {
-            path.lastUpdateTime = Time.millis();
-
-            tmpArray.clear();
-            path.getPositions(tmpArray);
-
-            synchronized (path.targets) {
-                //make sure the position actually changed
-                if (!(path.targets.size == 1 && tmpArray.size == 1 && path.targets.first() == tmpArray.first())) {
-                    path.updateTargetPositions();
-
-                    //queue an update
-                    queue.post(() -> updateTargets(path));
-                }
-            }
-        }
-
         int[] values = path.hasComplete ? path.completeWeights : path.weights;
         int apos = tile.array();
         int value = values[apos];
 
         Tile current = null;
         int tl = 0;
+        int j = 1;
+
         for (Point2 point : Geometry.d8) {
-            int dx = tile.x + point.x, dy = tile.y + point.y;
+            while (true) {
+                int dx = tile.x + point.x * j, dy = tile.y + point.y * j;
 
-            Tile other = world.tile(dx, dy);
-            if (other == null) continue;
+                Tile other = world.tile(dx, dy);
+                if (other == null) continue;
 
-            int packed = world.packArray(dx, dy);
+                int packed = world.packArray(dx, dy);
 
-            if (values[packed] < value && (current == null || values[packed] < tl) && path.passable(packed) &&
-                    !(point.x != 0 && point.y != 0 && (!path.passable(world.packArray(tile.x + point.x, tile.y)) || !path.passable(world.packArray(tile.x, tile.y + point.y))))) { //diagonal corner trap
-                current = other;
-                tl = values[packed];
+                if (values[packed] < value
+                        && (current == null || values[packed] < tl)
+                        && path.passable(packed)
+                        && !(point.x != 0 && point.y != 0 && (!path.passable(world.packArray(tile.x + point.x, tile.y)) || !path.passable(world.packArray(tile.x, tile.y + point.y))))) { //diagonal corner trap
+                    current = other;
+                    tl = values[packed];
+                    j++;
+                } else {
+                    break;
+                }
             }
         }
 

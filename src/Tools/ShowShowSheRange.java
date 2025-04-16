@@ -14,14 +14,11 @@ import arc.struct.IntFloatMap;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Align;
-import arc.util.Log;
-import arc.util.Strings;
 import arc.util.Tmp;
 import arc.util.pooling.Pools;
 import mindustry.Vars;
 import mindustry.content.Items;
 import mindustry.core.World;
-import mindustry.entities.Damage;
 import mindustry.entities.abilities.RepairFieldAbility;
 import mindustry.entities.abilities.SuppressionFieldAbility;
 import mindustry.entities.bullet.BulletType;
@@ -39,9 +36,6 @@ import mindustry.world.Tile;
 
 import static arc.Core.camera;
 import static mindustry.Vars.*;
-import static mindustry.Vars.state;
-import static mindustry.core.UI.*;
-import static mindustry.core.UI.thousands;
 
 public class ShowShowSheRange {
     private static final IntFloatMap damages = new IntFloatMap();
@@ -339,7 +333,7 @@ public class ShowShowSheRange {
                 int floor = Mathf.floor(value);
                 float decimal = value - floor;
 
-                showValue(formatAmount(floor, decimal), Color.white, tile.worldx(), tile.worldy() - 2, 0.75f);
+                showValue(PublicStaticVoids.formatAmount(floor, decimal), Color.white, tile.worldx(), tile.worldy() - 2, 0.75f);
             }
         }
         Draw.reset();
@@ -464,25 +458,6 @@ public class ShowShowSheRange {
             Draw.rect(Tmp.tr1, camera.position.x, camera.position.y);
             Draw.scl();
         });
-    }
-
-    public String formatAmount(long number, float decimal) {
-        long mag = Math.abs(number);
-        String sign = number < 0 ? "-" : "";
-
-        if (mag >= 1_000_000_000) {
-            return sign + Strings.fixed(mag / 1_000_000_000f, 1) + "[gray]" + billions + "[]";
-        } else if (mag >= 1_000_000) {
-            return sign + Strings.fixed(mag / 1_000_000f, 1) + "[gray]" + millions + "[]";
-        } else if (mag >= 10_000) {
-            return number / 1000 + "[gray]" + thousands + "[]";
-        } else if (mag >= 1000) {
-            return sign + Strings.fixed(mag / 1000f, 1) + "[gray]" + thousands + "[]";
-        } else if (mag >= 10) {
-            return Mathf.ceil(number + decimal) + "";
-        } else {
-            return decimal == 0 ? number + "" : sign + Strings.fixed(mag + decimal, 1) + "[]";
-        }
     }
 
     public class PotentialBullet {

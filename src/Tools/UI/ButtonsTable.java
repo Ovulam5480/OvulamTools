@@ -1,32 +1,42 @@
 package Tools.UI;
 
-import Tools.copy.PublicStaticVoids;
 import Tools.Tools;
+import Tools.UI.ShortcutsSchematics.ShortcutsSchematicsTable;
+import Tools.copy.PublicStaticVoids;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
-import arc.graphics.g2d.Font;
 import arc.graphics.g2d.Lines;
 import arc.math.Mathf;
-import arc.math.geom.*;
+import arc.math.geom.Geometry;
+import arc.math.geom.Intersector;
+import arc.math.geom.Vec2;
 import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.layout.Table;
-import arc.struct.*;
-import arc.util.*;
+import arc.struct.IntSeq;
+import arc.struct.ObjectMap;
+import arc.struct.Seq;
+import arc.util.Time;
+import arc.util.Tmp;
 import mindustry.Vars;
-import mindustry.content.*;
+import mindustry.content.Fx;
+import mindustry.content.Items;
+import mindustry.content.Liquids;
+import mindustry.content.StatusEffects;
 import mindustry.core.GameState;
 import mindustry.core.World;
-import mindustry.entities.Damage;
 import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
 import mindustry.game.EventType;
 import mindustry.game.Team;
-import mindustry.gen.*;
+import mindustry.gen.Building;
+import mindustry.gen.Call;
+import mindustry.gen.Icon;
+import mindustry.gen.Unit;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -37,7 +47,6 @@ import mindustry.logic.LExecutor;
 import mindustry.logic.LUnitControl;
 import mindustry.type.Item;
 import mindustry.type.UnitType;
-import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
 import mindustry.world.Block;
 import mindustry.world.Tile;
@@ -45,13 +54,12 @@ import mindustry.world.blocks.ConstructBlock;
 import mindustry.world.blocks.environment.Prop;
 import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.payloads.PayloadBlock;
-import mindustry.world.blocks.power.NuclearReactor;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.units.UnitAssembler;
 
+import static Tools.type.SchematicPlacer.canReplace;
 import static arc.Core.camera;
 import static mindustry.Vars.*;
-import static mindustry.Vars.player;
 
 public class ButtonsTable {
     private final FunctionButton[] functionButtons = new FunctionButton[]{
@@ -93,6 +101,7 @@ public class ButtonsTable {
                             movement.set(input.movement.x, input.movement.y).nor().scl(speed);
                         } else if (!Core.scene.hasField()) {
                             float xa = Core.input.axis(Binding.move_x);
+
                             float ya = Core.input.axis(Binding.move_y);
 
                             movement.set(xa, ya).nor().scl(speed);
@@ -115,48 +124,37 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("PVE显示敌方进攻路线", Icon.distribution, () -> {
-            }) {
+            new FunctionButton("PVE显示敌方进攻路线, V8适用情况暂时未知", Icon.distribution, () -> {}) {
                 final Color[] colors = {Pal.ammo, Pal.suppress, Liquids.water.color};
                 final Seq<Tile> spawners = new Seq<>();
                 final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
                 final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
+
                 final IntSeq[] tileSeqs = new IntSeq[3];
                 Tile tmp;
 
                 @Override
                 public void init() {
-                    check = () -> Tools.copyPathfinder.setShouldUpdate(true);
+                    check = () -> {
+                        Tools.copyPathfinder.setShouldUpdate(true);
+                        addSpawners();
+                    };
                     checkOff = () -> Tools.copyPathfinder.setShouldUpdate(false);
 
                     for (int i = 0; i < 3; i++) {
                         tileSeqs[i] = new IntSeq();
                     }
 
-                    Events.on(EventType.WorldLoadEvent.class, e -> {
-                        spawners.clear();
-                        buildingSpawners.clear();
-                        coreSpawners.clear();
-                        for (IntSeq tileSeq : tileSeqs) {
-                            tileSeq.clear();
-                        }
-
-                        if (!state.rules.pvp) {
-                            PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
-                                if (b) spawners.add(t);
-                                else coreSpawners.put(c, t);
-                            });
-                        }
-
-                        updateSpawnerPaths();
-                    });
+                    Events.on(EventType.WorldLoadEvent.class, e -> addSpawners());
 
                     Events.on(EventType.UnitCreateEvent.class, e -> {
                         if (!state.rules.pvp && e.unit.team != player.team() && e.unit.isGrounded() && e.spawner != null) {
                             Tile spawnTile = spawnTile(e.spawner);
 
                             if (spawnTile != null && !spawnTile.solid()) {
-                                buildingSpawners.put(spawnTile, e.unit.pathType());
+                                //buildingSpawners.put(spawnTile, e.unit.pathType());
+                                //todo
+                                buildingSpawners.put(spawnTile, 0);
                             }
                         }
                     });
@@ -188,28 +186,47 @@ public class ButtonsTable {
                     });
                 }
 
+                public void addSpawners(){
+                    spawners.clear();
+                    buildingSpawners.clear();
+                    coreSpawners.clear();
+                    for (IntSeq tileSeq : tileSeqs) {
+                        tileSeq.clear();
+                    }
+
+                    if (!state.rules.pvp) {
+                        PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
+                            if (b) spawners.add(t);
+                            else coreSpawners.put(c, t);
+                        });
+                    }
+
+                    updateSpawnerPaths();
+                }
+
                 public void drawPaths(IntSeq tileSeq, Color color, float thick, float offset) {
-                    Draw.color(color, Mathf.sin(30, 0.4f) + 0.6f);
                     int lastTile = -1;
 
                     Lines.stroke(thick);
+                    Draw.color(color, Mathf.sin(30, 0.4f) + 0.6f);
+
                     for (int j = 0; j < tileSeq.size; j++) {
                         int tile = tileSeq.get(j);
+
+                        if(tile == -2){
+                            continue;
+                        }
 
                         float x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
                                 x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
 
-                        if (lastTile == -1) {
-                            Lines.square(x1, y1, 7, 45);
-                        }
-
                         boolean containTo = Tmp.r1.contains(x1, y1), containFrom = Tmp.r1.contains(x2, y2);
 
-                        if (tile == -1 && containFrom) {
-                            Lines.square(x2, y2, 7, 45);
-                        } else if (lastTile == -1 && containTo) {
-                            Lines.square(x1, y1, 7, 45);
-                        } else if (containFrom && containTo) {
+                        if (tile == -1) {
+                            if(containFrom)Lines.square(x2, y2, 7, 45);
+                        } else if (lastTile < 0) {
+                            if(containTo)Lines.square(x1, y1, 7, 45);
+                        } else if (containFrom || containTo || Intersector.intersectSegmentRectangle(x1, y1, x2, y2, Tmp.r1)) {
                             Lines.line(x1, y1, x2, y2, false);
                         }
 
@@ -243,24 +260,34 @@ public class ButtonsTable {
                             updatePaths(tile, i);
                         }
                     });
-
                 }
 
                 public void updatePaths(Tile tile, int type) {
+                    IntSeq tiles = tileSeqs[type];
+                    tiles.add(tile.pos());
+
                     tmp = tile;
 
                     while (true) {
-                        Tile nextTile = Tools.copyPathfinder.getTargetTile(tmp, Tools.copyPathfinder.getField(Vars.state.rules.waveTeam, type));
-                        tileSeqs[type].add(tmp.pos());
+                        Tile nextTile = Tools.copyPathfinder.getTargetTile(tmp, Tools.copyPathfinder.getField(type));
+
+                        if((tmp.pos() != tiles.peek())
+                                && Intersector.pointLineSide(tiles.peek() >>> 16, tiles.peek() & 0xFFFF, tmp.x, tmp.y, nextTile.x, nextTile.y) != 0){
+                            tiles.add(tmp.pos());
+                        }
 
                         if (tmp == nextTile) {
-                            tileSeqs[type].add(-1);
+                            tiles.add(tmp.pos());
+                            tiles.add(-1);
+                            break;
+                        } else if(tiles.contains(nextTile.pos())){
+                            tiles.add(nextTile.pos());
+                            tiles.add(-2);
                             break;
                         }
 
                         tmp = nextTile;
                     }
-
                 }
             },
 
@@ -283,31 +310,9 @@ public class ButtonsTable {
 
             new FunctionButton("拆除地图上所有病毒逻辑和非玩家建造的潜在病毒逻辑", Icon.spray, () -> {
             }, null) {
-                private final Seq<Building> dangerous = new Seq<>();
 
                 @Override
                 public void init() {
-                    Events.on(EventType.WorldLoadEvent.class, e -> dangerous.clear());
-
-//                    Events.on(EventType.BlockBuildEndEvent.class, e -> {
-//                        if (!e.breaking) return;
-//                        if (state.rules.logicUnitBuild && e.tile.build instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
-//                            if (e.unit.isPlayer())
-//                                Call.sendChatMessage(lb.lastAccessed + "[white]建造了位于" + "(" + lb.tileX() + "," + lb.tileY() + ")" + "的病毒逻辑");
-//                        }
-//
-//                        if (state.rules.reactorExplosions && e.tile.build instanceof NuclearReactor.NuclearReactorBuild nr) {
-//                            for (CoreBlock.CoreBuild core : state.teams.get(player.team()).cores) {
-//                                float dst = core.dst(e.tile);
-//                                if (dst < 22 * 8) {
-//                                    dangerous.add(nr);
-//                                    Call.sendChatMessage(nr.lastAccessed + "[white]建造了位于" + "(" + nr.tileX() + "," + nr.tileY() + ")" + "的危险钍反");
-//                                    break;
-//                                }
-//                            }
-//                        }
-//                    });
-
                     check = () -> {
                         if(player.unit() == null)return;
 
@@ -340,25 +345,16 @@ public class ButtonsTable {
                 public void init() {
                     Events.run(EventType.Trigger.draw, () -> {
                         if (checked) {
-                            camera.bounds(Tmp.r1).grow(2 * tilesize);
-                            Tmp.r2.set(0, 0, (world.width() - 1) * tilesize, (world.height() - 1) * tilesize);
-
-                            Intersector.intersectRectangles(Tmp.r1, Tmp.r2, Tmp.r3);
-
                             Draw.color(Items.pyratite.color);
+                            PublicStaticVoids.eachCameraTiles(tile -> {
+                                if (tile.getFlammability() == 0) return;
 
-                            for (int i = 0; i < Tmp.r3.width; i = i + tilesize) {
-                                for (int j = 0; j < Tmp.r3.height; j = j + tilesize) {
-                                    Tile tile = world.tileWorld(Tmp.r3.x + i, Tmp.r3.y + j);
+                                float a = (float) Math.atan(tile.getFlammability()) * 2 / Mathf.pi;
 
-                                    if (tile.getFlammability() == 0) continue;
+                                Draw.alpha(a);
+                                Fill.square(tile.worldx(), tile.worldy(), 4);
+                            });
 
-                                    float a = (float) Math.atan(tile.getFlammability()) * 2 / Mathf.pi;
-
-                                    Draw.alpha(a);
-                                    Fill.square(tile.worldx(), tile.worldy(), 4);
-                                }
-                            }
                             Draw.reset();
                         }
                     });
@@ -449,6 +445,9 @@ public class ButtonsTable {
                 final Vec2 playerPos = new Vec2();
                 final Tile[] tiles = new Tile[2];
                 float pr;
+                {
+                    saveable = false;
+                }
 
                 @Override
                 public void init() {
@@ -513,46 +512,86 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("todo 敌对单位工厂计数器", Icon.eye) {
-                final ObjectMap<Building, Integer> map = new ObjectMap<>();
+            new FunctionButton("放置蓝图或者建筑时, 拆除建造列表下方阻挡的建筑", Icon.layers){
+                final Seq<BuildPlan> tmpPlans = new Seq<>();
+                final Seq<Building> breaks = new Seq<>();
 
                 @Override
                 public void init() {
-                    checkOff = map::clear;
+                    Events.on(EventType.TapEvent.class, e -> {
+                        if (e.player != Vars.player || !checked) return;
 
-                    Events.on(EventType.UnitCreateEvent.class, e -> {
-                        if (e.spawner != null && e.spawner.team != player.team()) {
-                            map.put(e.spawner, map.get(e.spawner, () -> 0) + 1);
+                        coverPlace(e.tile.x, e.tile.y);
+                    });
+
+                    Events.run(EventType.Trigger.draw, () -> {
+                        tmpPlans.each(bp -> bp.block.drawPlan(bp, tmpPlans, true, (Mathf.sinDeg(Time.time * 15) + 3) / 4f));
+                    });
+
+                    check = () -> {};
+
+                    checkOff = () -> {
+                        tmpPlans.clear();
+                        breaks.clear();
+                    };
+
+                    update = () -> {
+                        if(tmpPlans.size > 0 && player.unit() != null && player.unit().plans.size == 0){
+                            tmpPlans.each(p -> player.unit().plans.add(p));
+                            tmpPlans.clear();
+                        }
+                    };
+                }
+
+                public void coverPlace(int spx, int spy) {
+                    Tile tile = world.tile(spx, spy);
+                    if(tile == null)return;
+
+                    Unit unit = Vars.player.unit();
+                    if(unit == null)return;
+
+                    control.input.selectPlans.each(bp -> {
+                        if (bp.build() != null && bp.build().block == bp.block && bp.build().tileX() == bp.x && bp.build().tileY() == bp.y) {
+                            return;
+                        }
+
+                        breaks.clear();
+                        bp.hitbox(Tmp.r1);
+
+                        for (int i = 0; i < Tmp.r1.width / 8; i++) {
+                            for (int j = 0; j < Tmp.r1.height / 8; j++) {
+                                int x = (int) (Tmp.r1.x / 8 + i) + 1;
+                                int y = (int) (Tmp.r1.y / 8 + j) + 1;
+
+                                Building building = Vars.world.build(x, y);
+                                Tile worldTile = world.tile(x, y);
+
+                                if(worldTile == null)return;
+
+                                //不拆除能被替换的建筑: 防止出现玩家建造能够替换的建筑时, 由于 被替换的建筑的拆除计划 仍然存在导致的建造列表错误
+                                if (!canReplace(bp, worldTile)){
+                                    if (building != null) {
+                                        if (breaks.contains(building)) continue;
+                                        breaks.addUnique(building);
+
+                                        unit.plans.add(new BuildPlan(building.tileX(), building.tileY()));
+                                    } else {
+                                        unit.plans.add(new BuildPlan(x, y));
+                                    }
+                                }
+                            }
                         }
                     });
 
-
-                    Font font = Fonts.outline;
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (!checked) return;
-                        map.each((b, i) -> {
-                            if (b != null) {
-                                font.draw(i + "", b.x, b.y);
-                            }
-                        });
-                    });
+                    control.input.selectPlans.each(bp -> tmpPlans.add(bp.copy()));
                 }
             },
 
-            new FunctionButton("让本地游戏无法附身的单位允许附身", Icon.link) {
-                final Seq<UnitType> types = new Seq<>();
-
-                @Override
-                public void init() {
-                    types.selectFrom(content.units(), t -> !t.playerControllable);
-
-                    check = () -> types.each(t -> t.playerControllable = true);
-                    checkOff = () -> types.each(t -> t.playerControllable = false);
+            new FunctionButton("暂停器, 用于暂停游戏", Icon.pause){
+                {
+                    saveable = false;
                 }
-            },
-
-            new FunctionButton("暂停器", Icon.pause){
-                boolean shouldPause ;
+                boolean shouldPause;
                 @Override
                 public void init() {
                     update = () -> {
@@ -564,9 +603,10 @@ public class ButtonsTable {
                         }
                     };
                 }
-            }
+            },
 
-//            new FunctionButton("111", Icon.link) {
+
+//            new FunctionButton("坠落伤害测试器", Icon.link) {
 //                float total;
 //                int times;
 //                final Interval interval = new Interval();
@@ -612,11 +652,12 @@ public class ButtonsTable {
     };
 
     float size = 46;
-    int rowWidth = 7;
+    int rowWidth = Mathf.floor(ShortcutsSchematicsTable.getTotalWidth() / size);
 
     public ButtonsTable(Table parents) {
         for (int i = 0; i < functionButtons.length; i++) {
-            functionButtons[i].checked = Core.settings.getBool("tools-functions-" + i);
+            FunctionButton button = functionButtons[i];
+            button.checked = Core.settings.getBool("tools-functions-" + i) && button.saveable;
         }
 
         parents.table(buttonsTable -> {
@@ -664,6 +705,7 @@ public class ButtonsTable {
         public Drawable icon;
         public boolean checked;
         public Runnable update, check, checkOff;
+        public boolean saveable = true;
 
         public FunctionButton(String description, Drawable icon) {
             this.description = description;

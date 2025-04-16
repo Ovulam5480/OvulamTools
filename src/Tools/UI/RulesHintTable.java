@@ -17,9 +17,7 @@ public class RulesHintTable {
     public RulesHintTable(Table parents) {
         rulesHint = parents.table(this::reprint).margin(10).get();
 
-        Events.on(EventType.WorldLoadEvent.class, e -> {
-            reprint(rulesHint);
-        });
+        Events.on(EventType.WorldLoadEvent.class, e -> reprint(rulesHint));
     }
 
     public void reprint(Table table) {

@@ -1,8 +1,7 @@
-import arc.files.*
-import arc.util.*
-import arc.util.serialization.*
-import ent.*
-import java.io.*
+import arc.files.Fi
+import arc.util.OS
+import arc.util.serialization.Jval
+import java.io.BufferedWriter
 
 buildscript{
     val arcVersion: String by project
@@ -20,7 +19,7 @@ buildscript{
 
 plugins{
     java
-    id("com.github.GlennFolker.EntityAnno") apply false
+    id("com.github.GglLfr.EntityAnno") apply false
 }
 
 val arcVersion: String by project
@@ -39,7 +38,6 @@ val androidBuildVersion: String by project
 val androidMinVersion: String by project
 
 val useJitpack = property("mindustryBE").toString().toBooleanStrict()
-
 val gamePath: String by project
 
 fun arc(module: String): String{
@@ -51,7 +49,7 @@ fun mindustry(module: String): String{
 }
 
 fun entity(module: String): String{
-    return "com.github.GlennFolker.EntityAnno$module:$entVersion"
+    return "com.github.GglLfr.EntityAnno$module:$entVersion"
 }
 
 allprojects{
@@ -79,7 +77,7 @@ allprojects{
         mavenCentral()
         maven("https://oss.sonatype.org/content/repositories/snapshots/")
         maven("https://oss.sonatype.org/content/repositories/releases/")
-        maven("https://raw.githubusercontent.com/GlennFolker/EntityAnnoMaven/main")
+        maven("https://raw.githubusercontent.com/GglLfr/EntityAnnoMaven/main")
 
         // Use Zelaux's non-buggy repository for release Mindustry and Arc builds.
         if(!useJitpack) maven("https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository")
@@ -100,27 +98,24 @@ allprojects{
 }
 
 project(":"){
-    apply(plugin = "com.github.GlennFolker.EntityAnno")
-    configure<EntityAnnoExtension>{
-        modName = project.properties["modName"].toString()
-        mindustryVersion = project.properties[if(useJitpack) "mindustryBEVersion" else "mindustryVersion"].toString()
-        isJitpack = useJitpack
-        revisionDir = layout.projectDirectory.dir("revisions").asFile
-        fetchPackage = modFetch
-        genSrcPackage = modGenSrc
-        genPackage = modGen
-    }
+//    apply(plugin = "com.github.GglLfr.EntityAnno")
+//    configure<EntityAnnoExtension>{
+//        modName = project.properties["modName"].toString()
+//        mindustryVersion = project.properties[if(useJitpack) "mindustryBEVersion" else "mindustryVersion"].toString()
+//        isJitpack = useJitpack
+//        revisionDir = layout.projectDirectory.dir("revisions").asFile
+//        fetchPackage = modFetch
+//        genSrcPackage = modGenSrc
+//        genPackage = modGen
+//    }
 
     dependencies{
         // Use the entity generation annotation processor.
         compileOnly(entity(":entity"))
-        add("kapt", entity(":entity"))
+        //add("kapt", entity(":entity"))
 
         compileOnly(mindustry(":core"))
         compileOnly(arc(":arc-core"))
-
-        //implementation("com.github.Towdium:PinIn:1.6.0")
-        
     }
 
     val jar = tasks.named<Jar>("jar"){
@@ -134,7 +129,6 @@ project(":"){
 
             files(layout.projectDirectory.dir("assets")),
             layout.projectDirectory.file("icon.png"),
-            layout.projectDirectory.file("飙车示例.json"),
             meta
         )
 
@@ -178,27 +172,27 @@ project(":"){
                     OS.env("ANDROID_SDK_ROOT") ?: OS.env("ANDROID_HOME") ?:
                     throw IllegalStateException("Neither `ANDROID_SDK_ROOT` nor `ANDROID_HOME` is set.")
                 )
-    
+
                 // Find `d8`.
                 val d8 = File(sdkRoot, "build-tools/$androidBuildVersion/${if(OS.isWindows) "d8.bat" else "d8"}")
                 if(!d8.exists()) throw IllegalStateException("Android SDK `build-tools;$androidBuildVersion` isn't installed or is corrupted")
-    
+
                 // Initialize a release build.
                 val input = desktopJar.get().asFile
                 val command = arrayListOf("$d8", "--release", "--min-api", androidMinVersion, "--output", "$dexJar", "$input")
-    
+
                 // Include all compile and runtime classpath.
                 (configurations.compileClasspath.get().toList() + configurations.runtimeClasspath.get().toList()).forEach{
                     if(it.exists()) command.addAll(arrayOf("--classpath", it.path))
                 }
-    
+
                 // Include Android platform as library.
                 val androidJar = File(sdkRoot, "platforms/android-$androidSdkVersion/android.jar")
                 if(!androidJar.exists()) throw IllegalStateException("Android SDK `platforms;android-$androidSdkVersion` isn't installed or is corrupted")
-    
+
                 command.addAll(arrayOf("--lib", "$androidJar"))
                 if(OS.isWindows) command.addAll(0, arrayOf("cmd", "/c").toList())
-    
+
                 // Run `d8`.
                 commandLine(command)
             }.result.get().rethrowFailure()
@@ -229,6 +223,4 @@ project(":"){
         dependsOn("install")
         commandLine = listOf("cmd", "/c", "java", "-jar", gamePath)
     }
-
-
 }

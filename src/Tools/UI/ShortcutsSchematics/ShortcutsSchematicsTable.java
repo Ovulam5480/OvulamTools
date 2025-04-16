@@ -1,59 +1,46 @@
 package Tools.UI.ShortcutsSchematics;
 
+import Tools.Tools;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
 import arc.scene.style.TextureRegionDrawable;
-import arc.scene.ui.Button;
 import arc.scene.ui.ButtonGroup;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
-import arc.util.Log;
 import arc.util.Time;
-import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.core.UI;
 import mindustry.ctype.Content;
 import mindustry.ctype.UnlockableContent;
-import mindustry.entities.units.BuildPlan;
-import mindustry.game.EventType;
 import mindustry.game.Schematic;
 import mindustry.game.Schematics;
 import mindustry.gen.Building;
 import mindustry.gen.Icon;
 import mindustry.gen.Tex;
-import mindustry.gen.Unit;
 import mindustry.input.Binding;
 import mindustry.type.ItemSeq;
 import mindustry.type.ItemStack;
 import mindustry.ui.Styles;
-import mindustry.world.Tile;
 import mindustry.world.blocks.storage.CoreBlock;
 
 import java.util.Objects;
 
-import static Tools.type.SchematicPlacer.canReplace;
 import static mindustry.Vars.*;
-import static mindustry.Vars.iconMed;
 
 public class ShortcutsSchematicsTable {
-    public boolean coverMode;
     int currentCategory = 0;
     boolean clearMode, syncMode, editMode;
     Table schematicsTable = new Table(Tex.pane).margin(10),
             categoryTable = new Table(Tex.pane).margin(10),
             schematicsAndCategoryTable = new Table();
     SchematicsConfigDialog schematicsConfigDialog = new SchematicsConfigDialog();
-    Seq<Building> breaks = new Seq<>();
-    Seq<BuildPlan> tmpPlans = new Seq<>(); ;
 
-    Schematic hovered, wasHovered, coverPlan;
+    Schematic hovered, wasHovered;
     TextureRegionDrawable hoveredIcons;
-
-    int previousHeight, previousWidth, previousCatWidth;
 
     Binding[] blockSelect = {
             Binding.block_select_01,
@@ -81,40 +68,16 @@ public class ShortcutsSchematicsTable {
             t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).tooltip("按下后点击删除蓝图或者分类的提示").row();
             t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).tooltip("按下后点击更新为蓝图库内同名蓝图").row();
             t.button(Icon.edit, Styles.clearNoneTogglei, () -> editMode = !editMode).size(46).tooltip("按下后点击编辑蓝图名称, 或编辑分类的提示").row();
-            t.button(Icon.wrench, Styles.clearNoneTogglei, () -> coverMode = !coverMode).size(46).tooltip("覆盖模式, 将会拆除建造列表下方阻挡的建筑, 不局限于快捷蓝图").row();
             t.add().growY();
 
         }).margin(10).growY();
 
         parents.add(schematicsAndCategoryTable);
 
-        Events.run(EventType.Trigger.update, () -> {
-            if (getRowHeight() != previousHeight) {
-                previousHeight = getRowHeight();
-                rebuild();
-                rebuildCat();
-            }
-            if (getRowWidth() != previousWidth) {
-                previousWidth = getRowWidth();
-                rebuild();
-            }
-            if (getCatWidth() != previousCatWidth) {
-                previousCatWidth = getCatWidth();
-                rebuildCat();
-            }
-
-            if(tmpPlans.size > 0 && player.unit() != null && player.unit().plans.size == 0){
-                tmpPlans.each(p -> player.unit().plans.add(p));
-                tmpPlans.clear();
-            }
+        Events.on(Tools.TableChangeEvent.class, e -> {
+            rebuild();
+            rebuildCat();
         });
-
-        Events.on(EventType.TapEvent.class, e -> {
-            if (e.player != Vars.player || !coverMode) return;
-
-            coverPlace(e.tile.x, e.tile.y);
-        });
-
 
         Events.on(SchematicsSelectDialog.SchematicsSelectEvent.class, e -> {
             if (Objects.equals(e.type, "schematics")) rebuild();
@@ -192,7 +155,6 @@ public class ShortcutsSchematicsTable {
                         });
                     }else {
                         control.input.useSchematic(schematic);
-                        if(coverMode) coverPlan = schematic;
                     }
                 }).size(46).group(group).name(schematic.name()).get();
 
@@ -310,16 +272,19 @@ public class ShortcutsSchematicsTable {
         }
     }
 
+    public static int getTotalWidth(){
+        return (getRowWidth() + getCatWidth() + 1) * 46 + 60;
+    }
 
-    public int getRowHeight() {
+    public static int getRowHeight() {
         return Core.settings.getInt("快捷蓝图与蓝图分类行数");
     }
 
-    public int getRowWidth() {
+    public static int getRowWidth() {
         return Core.settings.getInt("快捷蓝图列数");
     }
 
-    public int getCatWidth() {
+    public static int getCatWidth() {
         return Core.settings.getInt("蓝图分类列数");
     }
 
@@ -342,48 +307,5 @@ public class ShortcutsSchematicsTable {
 
     public void setHovered(Schematic hovered) {
         this.hovered = hovered;
-    }
-
-    public void coverPlace(int spx, int spy) {
-        Tile tile = world.tile(spx, spy);
-        if(tile == null)return;
-
-        Unit unit = Vars.player.unit();
-        if(unit == null)return;
-
-        control.input.selectPlans.each(bp -> {
-            if (bp.build() != null && bp.build().block == bp.block && bp.build().tileX() == bp.x && bp.build().tileY() == bp.y) {
-                return;
-            }
-
-            breaks.clear();
-            bp.hitbox(Tmp.r1);
-
-            for (int i = 0; i < Tmp.r1.width / 8; i++) {
-                for (int j = 0; j < Tmp.r1.height / 8; j++) {
-                    int x = (int) (Tmp.r1.x / 8 + i) + 1;
-                    int y = (int) (Tmp.r1.y / 8 + j) + 1;
-
-                    Building building = Vars.world.build(x, y);
-                    Tile worldTile = world.tile(x, y);
-
-                    if(worldTile == null)return;
-
-                    //不拆除能被替换的建筑: 防止出现玩家建造能够替换的建筑时, 由于 被替换的建筑的拆除计划 仍然存在导致的建造列表错误
-                    if (!canReplace(bp, worldTile)){
-                        if (building != null) {
-                            if (breaks.contains(building)) continue;
-                            breaks.addUnique(building);
-
-                            unit.plans.add(new BuildPlan(building.tileX(), building.tileY()));
-                        } else {
-                            unit.plans.add(new BuildPlan(x, y));
-                        }
-                    }
-                }
-            }
-        });
-
-        control.input.selectPlans.each(bp -> tmpPlans.add(bp.copy()));
     }
 }

@@ -1,52 +1,42 @@
 package Tools;
 
-import Tools.UI.ToolsFragment;
+import Tools.UI.ToolsWindows;
 import Tools.UI.UpdaterTable;
 import Tools.copy.CopyPathfinder;
 import arc.Core;
 import arc.Events;
-import arc.Graphics;
 import arc.files.Fi;
 import arc.math.Mathf;
+import arc.scene.Group;
+import arc.scene.event.Touchable;
+import arc.scene.ui.layout.WidgetGroup;
 import arc.util.Http;
 import arc.util.Log;
-import arc.util.Time;
 import arc.util.serialization.Jval;
 import mindustry.Vars;
-import mindustry.content.Blocks;
+import mindustry.content.Planets;
 import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
-import mindustry.core.Version;
-import mindustry.entities.Damage;
-import mindustry.entities.bullet.BulletType;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Icon;
-import mindustry.gen.Payloadc;
 import mindustry.gen.Unit;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
-import mindustry.ui.Fonts;
 import mindustry.ui.dialogs.SettingsMenuDialog;
-import mindustry.world.Tile;
-import mindustry.world.blocks.environment.Floor;
-import mindustry.world.blocks.payloads.BuildPayload;
-import mindustry.world.blocks.payloads.PayloadConveyor;
-import mindustry.world.blocks.payloads.UnitPayload;
-import mindustry.world.blocks.units.UnitFactory;
 
-import static mindustry.Vars.mods;
-import static mindustry.Vars.ui;
+import static mindustry.Vars.*;
 
 public class Tools extends Mod{
-    public static SettingsMenuDialog.SettingsTable toolsSettingTable;
     public static CopyPathfinder copyPathfinder;
+    public static Group buttonGroup;
+    public static ToolsWindows windows;
+    public static TableChangeEvent tableChangeEvent = new TableChangeEvent();
 
     @Override
     public void init(){
         copyPathfinder = new CopyPathfinder();
-        toolsSettingTable = new SettingsMenuDialog.SettingsTable();
         
         ui.settings.addCategory("工具箱设置", Icon.chartBar, st -> {
             st.checkPref("禁用弹药范围显示, 重启生效", false);
@@ -67,24 +57,54 @@ public class Tools extends Mod{
             });
             corvusBullet.width = Core.settings.getInt("死星激光宽度");
 
+            st.checkPref("启用旧版发射台与旧版发射方式", false, b -> Planets.serpulo.campaignRules.legacyLaunchPads = b);
+            Planets.serpulo.campaignRules.legacyLaunchPads = Core.settings.getBool("启用旧版发射台与旧版发射方式");
+
             st.checkPref("禁用快捷蓝图表, 重启生效", false);
-            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 4, 8, 1, i -> i + "行");
-            st.sliderPref("快捷蓝图列数", 5, 4, 8, 1, i -> i + "列");
-            st.sliderPref("蓝图分类列数", 2, 1, 8, 1, i -> i + "列");
+            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 4, 8, 1, i -> {
+                Events.fire(tableChangeEvent);
+                return i + "行";
+            });
+            st.sliderPref("快捷蓝图列数", 5, 4, 12, 1, i -> {
+                Events.fire(tableChangeEvent);
+                return i + "列";
+            });
+            st.sliderPref("蓝图分类列数", 2, 1, 12, 1, i -> {
+                Events.fire(tableChangeEvent);
+                return i + "列";
+            });
+
+            st.sliderPref("快捷蓝图表大小", 100, 20, 250, 10, i -> {
+                if(buttonGroup != null){
+                    buttonGroup.setScale(i / 100f);
+                    windows.applyPosition();
+                }
+                return i + "%";
+            });
             st.sliderPref("蓝图物品需求表自动隐藏时间", 3, 0, 15, 1, i -> {
                 if(i == 0)return "立即隐藏";
                 return i + "秒";
             });
             st.sliderPref("自动挖矿阈值", 1000, 100, 3500, 100, i -> i + "");
             st.checkPref("蓝图物品需求计入核心", false);
-            st.checkPref("是否默认收起快捷蓝图表", false);
             st.checkPref("保存设定的工具表的位置", true);
+            st.checkPref("是否默认收起快捷蓝图表", false);
             //st.checkPref("重生或附身其他单位时保存建筑序列", true);
         });
 
         if(!Core.settings.getBool("禁用弹药范围显示, 重启生效"))new ShowShowSheRange();
         if(!Core.settings.getBool("禁用快捷蓝图表, 重启生效")){
-            ToolsFragment fragment = new ToolsFragment(ui.hudGroup);
+            buttonGroup = new WidgetGroup();
+            buttonGroup.setFillParent(true);
+            buttonGroup.touchable = Touchable.childrenOnly;
+            buttonGroup.visible(() -> state.isGame());
+            //buttonGroup.visible(() -> true);
+            buttonGroup.setScale(Core.settings.getInt("快捷蓝图表大小", 100) / 100f);
+            buttonGroup.setTransform(true);
+
+            Core.scene.add(buttonGroup);
+
+            windows = new ToolsWindows(buttonGroup);
 
             Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
             if(!fi.exists() || !fi.isDirectory()){
@@ -102,7 +122,7 @@ public class Tools extends Mod{
                     String tag = json.get("tag_name").asString();
                     if (compareVersions(thisMod().meta.version, tag) == -1) {
                         UpdaterTable.assets = json.get("assets").asArray();
-                        new UpdaterTable(fragment.updaterTable);
+                        new UpdaterTable(windows.updaterTable);
 
                         Log.info("工具箱有新版更新");
                     } else {
@@ -113,8 +133,6 @@ public class Tools extends Mod{
         }
 
         biabiabia();
-        //Events.on(EventType.WorldLoadEvent.class, e -> Time.run(10, this::dadwa));
-        //Time.run(1200f, this::dadwa);
     }
 
     public Mods.LoadedMod thisMod(){
@@ -136,18 +154,6 @@ public class Tools extends Mod{
             }
         }
         return 0;
-    }
-
-    public void dadwa(){
-        for (int i = 570; i < 600; i++) {
-            for (int j = 170; j < 200; j++) {
-                Unit unit = UnitTypes.merui.create(Team.crux);
-                unit.set(i * 8, j * 8);
-                unit.apply(StatusEffects.unmoving, 10000000);
-                unit.apply(StatusEffects.disarmed, 10000000);
-                unit.add();
-            }
-        }
     }
 
     public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){
@@ -188,7 +194,6 @@ public class Tools extends Mod{
 
     public static int iconSize = 46;
 
-    public static int getTableWidth(){
-        return (Core.settings.getInt("快捷蓝图列数") + Core.settings.getInt("蓝图分类列数")) * iconSize + 40;
+    public static class TableChangeEvent{
     }
 }
