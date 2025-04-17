@@ -13,6 +13,7 @@ import arc.util.Nullable;
 import arc.util.TaskQueue;
 import arc.util.Time;
 import mindustry.Vars;
+import mindustry.ai.Pathfinder;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Building;
@@ -334,27 +335,18 @@ public class CopyPathfinder implements Runnable {
 
         Tile current = null;
         int tl = 0;
-        int j = 1;
-
         for (Point2 point : Geometry.d8) {
-            while (true) {
-                int dx = tile.x + point.x * j, dy = tile.y + point.y * j;
+            int dx = tile.x + point.x, dy = tile.y + point.y;
 
-                Tile other = world.tile(dx, dy);
-                if (other == null) continue;
+            Tile other = world.tile(dx, dy);
+            if (other == null) continue;
 
-                int packed = world.packArray(dx, dy);
+            int packed = world.packArray(dx, dy);
 
-                if (values[packed] < value
-                        && (current == null || values[packed] < tl)
-                        && path.passable(packed)
-                        && !(point.x != 0 && point.y != 0 && (!path.passable(world.packArray(tile.x + point.x, tile.y)) || !path.passable(world.packArray(tile.x, tile.y + point.y))))) { //diagonal corner trap
-                    current = other;
-                    tl = values[packed];
-                    j++;
-                } else {
-                    break;
-                }
+            if (values[packed] < value && (current == null || values[packed] < tl) && path.passable(packed) &&
+                    !(point.x != 0 && point.y != 0 && (!path.passable(world.packArray(tile.x + point.x, tile.y)) || !path.passable(world.packArray(tile.x, tile.y + point.y))))) { //diagonal corner trap
+                current = other;
+                tl = values[packed];
             }
         }
 
