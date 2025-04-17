@@ -30,7 +30,7 @@ public class SchematicsConfigDialog extends BaseDialog {
     private final Table datebaseTable = new Table();
     private final SchematicsSelectDialog schematicsSelectDialog = new SchematicsSelectDialog("schematics");
     private int category, index;
-    private String contentName = UnitTypes.mono.name;
+    private String contentName;
 
     public SchematicsConfigDialog() {
         super("配置快捷蓝图图标");
@@ -105,8 +105,8 @@ public class SchematicsConfigDialog extends BaseDialog {
                     }
 
                     image.clicked(() -> {
-                        schematicsSelectDialog.show();
                         contentName = unlock.name;
+                        schematicsSelectDialog.show();
                     });
 
                     if((++count) % cols == 0){

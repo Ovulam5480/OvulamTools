@@ -173,10 +173,10 @@ public class ShortcutsSchematicsTable {
                 });
 
                 button.exited(() -> {
-                    int time = Core.settings.getInt("蓝图物品需求表自动隐藏时间") * 60;
+                    int time = Core.settings.getInt("蓝图物品需求表自动隐藏时间");
 
-                    if (time == 0) hovered = null;
-                    else Time.runTask(time, () -> {
+                    if (time <= 1) hovered = null;
+                    else Time.runTask(time * 60, () -> {
                         if (hovered == schematic) hovered = null;
                     });
                 });
@@ -226,7 +226,7 @@ public class ShortcutsSchematicsTable {
                     }
                 }).growX().margin(3);
             }
-        })).growX().margin(10).marginBottom(15).visible(() -> hovered != null).row();
+        })).growX().margin(10).marginBottom(15).visible(() -> hovered != null || Core.settings.getInt("蓝图物品需求表自动隐藏时间") == 0).row();
     }
 
     public void rebuildCat() {

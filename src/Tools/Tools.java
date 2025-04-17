@@ -15,13 +15,10 @@ import arc.util.Log;
 import arc.util.serialization.Jval;
 import mindustry.Vars;
 import mindustry.content.Planets;
-import mindustry.content.StatusEffects;
 import mindustry.content.UnitTypes;
 import mindustry.entities.bullet.LaserBulletType;
 import mindustry.game.EventType;
-import mindustry.game.Team;
 import mindustry.gen.Icon;
-import mindustry.gen.Unit;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
 import mindustry.ui.dialogs.SettingsMenuDialog;
@@ -61,15 +58,15 @@ public class Tools extends Mod{
             Planets.serpulo.campaignRules.legacyLaunchPads = Core.settings.getBool("启用旧版发射台与旧版发射方式");
 
             st.checkPref("禁用快捷蓝图表, 重启生效", false);
-            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 4, 8, 1, i -> {
+            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 4, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
                 return i + "行";
             });
-            st.sliderPref("快捷蓝图列数", 5, 4, 12, 1, i -> {
+            st.sliderPref("快捷蓝图列数", 5, 4, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
                 return i + "列";
             });
-            st.sliderPref("蓝图分类列数", 2, 1, 12, 1, i -> {
+            st.sliderPref("蓝图分类列数", 2, 1, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
                 return i + "列";
             });
@@ -82,7 +79,8 @@ public class Tools extends Mod{
                 return i + "%";
             });
             st.sliderPref("蓝图物品需求表自动隐藏时间", 3, 0, 15, 1, i -> {
-                if(i == 0)return "立即隐藏";
+                if(i == 1)return "立即隐藏";
+                else if(i == 0)return "不显示";
                 return i + "秒";
             });
             st.sliderPref("自动挖矿阈值", 1000, 100, 3500, 100, i -> i + "");
