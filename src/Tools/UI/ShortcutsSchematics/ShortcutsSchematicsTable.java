@@ -4,13 +4,19 @@ import Tools.Tools;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
+import arc.graphics.g2d.TextureRegion;
+import arc.input.KeyBind;
+import arc.scene.event.Touchable;
+import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ButtonGroup;
+import arc.scene.ui.Image;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
+import arc.util.Scaling;
 import arc.util.Time;
 import mindustry.Vars;
 import mindustry.core.UI;
@@ -33,7 +39,7 @@ import static mindustry.Vars.*;
 
 public class ShortcutsSchematicsTable {
     int currentCategory = 0;
-    boolean clearMode, syncMode, editMode;
+    boolean clearMode, syncMode, editMode, view;
     Table schematicsTable = new Table(Tex.pane).margin(10),
             categoryTable = new Table(Tex.pane).margin(10),
             schematicsAndCategoryTable = new Table();
@@ -41,18 +47,19 @@ public class ShortcutsSchematicsTable {
 
     Schematic hovered, wasHovered;
     TextureRegionDrawable hoveredIcons;
+    Image image;
 
-    Binding[] blockSelect = {
-            Binding.block_select_01,
-            Binding.block_select_02,
-            Binding.block_select_03,
-            Binding.block_select_04,
-            Binding.block_select_05,
-            Binding.block_select_06,
-            Binding.block_select_07,
-            Binding.block_select_08,
-            Binding.block_select_09,
-            Binding.block_select_10
+    KeyBind[] blockSelect = {
+            Binding.blockSelect01,
+            Binding.blockSelect02,
+            Binding.blockSelect03,
+            Binding.blockSelect04,
+            Binding.blockSelect05,
+            Binding.blockSelect06,
+            Binding.blockSelect07,
+            Binding.blockSelect08,
+            Binding.blockSelect09,
+            Binding.blockSelect10,
     };
 
     public ShortcutsSchematicsTable(Table parents) {
@@ -68,8 +75,9 @@ public class ShortcutsSchematicsTable {
             t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).tooltip("按下后点击删除蓝图或者分类的提示").row();
             t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).tooltip("按下后点击更新为蓝图库内同名蓝图").row();
             t.button(Icon.edit, Styles.clearNoneTogglei, () -> editMode = !editMode).size(46).tooltip("按下后点击编辑蓝图名称, 或编辑分类的提示").row();
+            t.button(Icon.eye, Styles.clearNoneTogglei, () -> view = !view).size(46).tooltip("蓝图预览").row();
             t.add().growY();
-
+            
         }).margin(10).growY();
 
         parents.add(schematicsAndCategoryTable);
@@ -83,6 +91,14 @@ public class ShortcutsSchematicsTable {
             if (Objects.equals(e.type, "schematics")) rebuild();
         });
 
+        image = new Image((Drawable)null);
+        image.color.a = 0.5f;
+        image.touchable = Touchable.disabled;
+        image.setScaling(Scaling.fit);
+        image.setFillParent(true);
+
+        image.visible(() -> view && image.getDrawable() != null);
+        Core.scene.add(image);
     }
 
 
@@ -170,6 +186,8 @@ public class ShortcutsSchematicsTable {
                 button.hovered(() -> {
                     hovered = schematic;
                     hoveredIcons = icon;
+
+                    image.setDrawable(new TextureRegionDrawable(new TextureRegion(schematics.getPreview(hovered))));
                 });
 
                 button.exited(() -> {
@@ -179,6 +197,8 @@ public class ShortcutsSchematicsTable {
                     else Time.runTask(time * 60, () -> {
                         if (hovered == schematic) hovered = null;
                     });
+
+                    image.setDrawable((Drawable) null);
                 });
             }
 

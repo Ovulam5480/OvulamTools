@@ -23,10 +23,7 @@ import arc.struct.Seq;
 import arc.util.Time;
 import arc.util.Tmp;
 import mindustry.Vars;
-import mindustry.content.Fx;
-import mindustry.content.Items;
-import mindustry.content.Liquids;
-import mindustry.content.StatusEffects;
+import mindustry.content.*;
 import mindustry.core.GameState;
 import mindustry.core.World;
 import mindustry.entities.units.BuildPlan;
@@ -56,10 +53,16 @@ import mindustry.world.blocks.logic.LogicBlock;
 import mindustry.world.blocks.payloads.PayloadBlock;
 import mindustry.world.blocks.storage.CoreBlock;
 import mindustry.world.blocks.units.UnitAssembler;
+import mindustry.world.meta.BlockFlag;
+import mindustry.world.meta.BlockStatus;
+
+import java.util.Arrays;
 
 import static Tools.type.SchematicPlacer.canReplace;
 import static arc.Core.camera;
 import static mindustry.Vars.*;
+import static mindustry.world.meta.BlockFlag.*;
+import static mindustry.world.meta.BlockFlag.drill;
 
 public class ButtonsTable {
     private final FunctionButton[] functionButtons = new FunctionButton[]{
@@ -100,9 +103,8 @@ public class ButtonsTable {
 
                             movement.set(input.movement.x, input.movement.y).nor().scl(speed);
                         } else if (!Core.scene.hasField()) {
-                            float xa = Core.input.axis(Binding.move_x);
-
-                            float ya = Core.input.axis(Binding.move_y);
+                            float xa = Core.input.axis(Binding.moveX);
+                            float ya = Core.input.axis(Binding.moveY);
 
                             movement.set(xa, ya).nor().scl(speed);
                         }
@@ -130,7 +132,10 @@ public class ButtonsTable {
                 final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
                 final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
 
+                private final BlockFlag[] randomTargets = {storage, generator, launchPad, factory, repair, battery, reactor, drill};
+
                 final IntSeq[] tileSeqs = new IntSeq[3];
+                final Building[] random = new Building[randomTargets.length];
                 Tile tmp;
 
                 @Override
@@ -176,12 +181,26 @@ public class ButtonsTable {
 
                             for (int i = 0; i < tileSeqs.length; i++) {
                                 IntSeq tileSeq = tileSeqs[i];
-                                float offset = ((i + 1) * 2 - colors.length) * 1.4f;
+                                int offset = ((i + 1) * 2 - colors.length) * 2;
 
                                 drawPaths(tileSeq, Pal.gray, 3f, offset);
                                 drawPaths(tileSeq, colors[i], 1f, offset);
                             }
+
+                            Draw.color(Pal.remove, Mathf.sinDeg(Time.time * 3) * 0.3f + 0.4f);
+                            Lines.stroke(2);
+
+                            if(state.rules.randomWaveAI){
+                                for (Building building : random) {
+                                    if (building != null) {
+                                        Fill.square(building.x, building.y, building.block.size * 4, 0);
+                                        Lines.square(building.x, building.y, building.block.size * 4);
+                                    }
+                                }
+                            }
+
                             Draw.reset();
+                            Lines.stroke(1);
                         }
                     });
                 }
@@ -204,7 +223,7 @@ public class ButtonsTable {
                     updateSpawnerPaths();
                 }
 
-                public void drawPaths(IntSeq tileSeq, Color color, float thick, float offset) {
+                public void drawPaths(IntSeq tileSeq, Color color, float thick, int offset) {
                     int lastTile = -1;
 
                     Lines.stroke(thick);
@@ -213,21 +232,19 @@ public class ButtonsTable {
                     for (int j = 0; j < tileSeq.size; j++) {
                         int tile = tileSeq.get(j);
 
-                        if(tile == -2){
-                            continue;
-                        }
+                        if(tile != -2) {
+                            int x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
+                                    x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
 
-                        float x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
-                                x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
+                            boolean containTo = Tmp.r1.contains(x1, y1), containFrom = Tmp.r1.contains(x2, y2);
 
-                        boolean containTo = Tmp.r1.contains(x1, y1), containFrom = Tmp.r1.contains(x2, y2);
-
-                        if (tile == -1) {
-                            if(containFrom)Lines.square(x2, y2, 7, 45);
-                        } else if (lastTile < 0) {
-                            if(containTo)Lines.square(x1, y1, 7, 45);
-                        } else if (containFrom || containTo || Intersector.intersectSegmentRectangle(x1, y1, x2, y2, Tmp.r1)) {
-                            Lines.line(x1, y1, x2, y2, false);
+                            if (tile == -1) {
+                                if (containFrom) Lines.square(x2, y2, 7, 45);
+                            } else if (lastTile < 0) {
+                                if (containTo) Lines.square(x1, y1, 7, 45);
+                            } else if (containFrom || containTo || Intersector.intersectSegmentRectangle(x1, y1, x2, y2, Tmp.r1)) {
+                                Lines.line(x1, y1, x2, y2, false);
+                            }
                         }
 
                         lastTile = tile;
@@ -246,6 +263,7 @@ public class ButtonsTable {
                     for (IntSeq tileSeq : tileSeqs) {
                         tileSeq.clear();
                     }
+                    Arrays.fill(random, null);
 
                     spawners.each(tile -> {
                         for (int i = 0; i < colors.length; i++) {
@@ -260,6 +278,21 @@ public class ButtonsTable {
                             updatePaths(tile, i);
                         }
                     });
+
+                    if(state.rules.randomWaveAI){
+                        //maximum amount of different target flag types they will attack
+                        for (int i = 0; i < randomTargets.length; i++) {
+                            BlockFlag target = randomTargets[i];
+                            var targets = indexer.getEnemy(state.rules.waveTeam, target);
+                            if (!targets.isEmpty()) {
+                                for (Building other : targets) {
+                                    if ((other.items != null && other.items.any()) || other.status() != BlockStatus.noInput) {
+                                        random[i] = other;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 public void updatePaths(Tile tile, int type) {

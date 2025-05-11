@@ -154,23 +154,16 @@ public class Tools extends Mod{
         return 0;
     }
 
-    public void putSetting(SettingsMenuDialog.SettingsTable st,  String name){
-        st.sliderPref(name, 20, 0, 100, 1, f -> {
-            if(f == 0)return "关闭";
-            return f + "%";
-        });
+    public void putSetting(SettingsMenuDialog.SettingsTable st, String name) {
+        st.sliderPref(name, 20, 0, 100, 1, f -> f == 0 ? "关闭" : f + "%");
     }
 
-    final String[] displayNames = new String[]{
-            "致敬传奇球状闪电j8n",
-            "9527的服务器为什么总会换9527的图?",
-            "666666说:666666",
-            "一键自动飙车",
-            "原版代码搬运工",
-            "这个模组被EOD的病毒传染了!",
-            "按F8自动下载原神",
-            "[gray]9527[scarlet]飙车[brown]大奋[violet]正[acid]版[yellow]授[red]权",
-            "不允许使用蓝图(库)跟我快捷蓝图表有什么关系"
+    private final String[] displayNames = {
+        "致敬传奇球状闪电j8n", "9527的服务器为什么总会换9527的图?",
+        "666666说:666666", "一键自动飙车", "原版代码搬运工",
+        "这个模组被EOD的病毒传染了!", "按F8自动下载原神",
+        "[gray]9527[scarlet]飙车[brown]大奋[violet]正[acid]版[yellow]授[red]权",
+        "不允许使用蓝图(库)跟我快捷蓝图表有什么关系"
     };
 
     //秒做为单位

@@ -4,20 +4,23 @@ import Tools.Tools;
 import arc.Core;
 import arc.Events;
 import arc.func.Prov;
+import arc.graphics.Color;
+import arc.graphics.g2d.Draw;
+import arc.graphics.g2d.Fill;
+import arc.graphics.g2d.Font;
 import arc.math.geom.Geometry;
 import arc.math.geom.Point2;
 import arc.struct.IntQueue;
 import arc.struct.IntSeq;
 import arc.struct.Seq;
-import arc.util.Nullable;
-import arc.util.TaskQueue;
-import arc.util.Time;
+import arc.util.*;
 import mindustry.Vars;
-import mindustry.ai.Pathfinder;
 import mindustry.game.EventType;
 import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.gen.PathTile;
+import mindustry.graphics.Layer;
+import mindustry.ui.Fonts;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.Floor;
 import mindustry.world.blocks.storage.CoreBlock;
@@ -81,20 +84,24 @@ public class CopyPathfinder implements Runnable {
     public CopyPathfinder() {
         clearCache();
 
-//        Font f = Fonts.outline;
-//        Events.run(EventType.Trigger.draw, () -> {
-//            Draw.z(Layer.fogOfWar+1);
-//            f.getData().setScale(0.1f);
-//            Flowfield path = Tools.copyPathfinder.getField(0);
-//            int[] values = path.hasComplete ? path.completeWeights : path.weights;
-//            if(values == null)return;
-//
-//            PublicStaticVoids.eachCameraTiles(tile -> {
-//                f.draw(PublicStaticVoids.formatAmount(values[world.packArray(tile.x, tile.y)]), tile.x * 8, tile.y * 8, Align.center);
-//            });
-//
-//            f.getData().setScale(1f);
-//        });
+        Font f = Fonts.outline;
+        Events.run(EventType.Trigger.draw, () -> {
+            Draw.z(Layer.fogOfWar+1);
+            Flowfield path = Tools.copyPathfinder.getField(1);
+            int[] values = path.hasComplete ? path.completeWeights : path.weights;
+            if(values == null)return;
+
+            f.getData().setScale(0.1f);
+            PublicStaticVoids.eachCameraTiles(tile -> {
+                int value = values[world.packArray(tile.x, tile.y)] % 6000;
+                if(value == -1)return;
+                Draw.color(Tmp.c1.set(Color.red).hue(value * 2f).a(0.5f));
+                Fill.square(tile.x * 8, tile.y * 8, 4);
+
+                f.draw(PublicStaticVoids.formatAmount(value), tile.x * 8, tile.y * 8, Align.center);
+            });
+            f.getData().setScale(1f);
+        });
 
         Events.on(EventType.WorldLoadEvent.class, event -> {
             stop();
@@ -267,13 +274,14 @@ public class CopyPathfinder implements Runnable {
     }
 
 
+    boolean a = false;
     /**
      * Thread implementation.
      */
     @Override
     public void run() {
         while (true) {
-            if (shouldUpdate) {
+            if (shouldUpdate && a) {
                 try {
                     if (state.isPlaying()) {
                         queue.run();

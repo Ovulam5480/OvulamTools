@@ -8,9 +8,9 @@ main: "Tools.Tools"
 
 description: "用于显示子弹溅射范围或者单位坠落伤害半径的辅助模组(起码以前是)"
 
-version: 0.8.1
+version: 0.8.2
 
-minGameVersion: 147
+minGameVersion: 149
 
 java: true
 
