@@ -5,7 +5,6 @@ import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
-import arc.input.KeyBind;
 import arc.scene.event.Touchable;
 import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
@@ -27,7 +26,6 @@ import mindustry.game.Schematics;
 import mindustry.gen.Building;
 import mindustry.gen.Icon;
 import mindustry.gen.Tex;
-import mindustry.input.Binding;
 import mindustry.type.ItemSeq;
 import mindustry.type.ItemStack;
 import mindustry.ui.Styles;
@@ -48,19 +46,6 @@ public class ShortcutsSchematicsTable {
     Schematic hovered, wasHovered;
     TextureRegionDrawable hoveredIcons;
     Image image;
-
-    KeyBind[] blockSelect = {
-            Binding.blockSelect01,
-            Binding.blockSelect02,
-            Binding.blockSelect03,
-            Binding.blockSelect04,
-            Binding.blockSelect05,
-            Binding.blockSelect06,
-            Binding.blockSelect07,
-            Binding.blockSelect08,
-            Binding.blockSelect09,
-            Binding.blockSelect10,
-    };
 
     public ShortcutsSchematicsTable(Table parents) {
         buildTop(parents);
@@ -277,14 +262,7 @@ public class ShortcutsSchematicsTable {
                     currentCategory = index;
                     rebuild();
                 }
-            }).size(46).group(group).update(b -> {
-                b.setChecked(currentCategory == index);
-
-                if (index < 10 && Core.input.alt() && Core.input.keyTap(blockSelect[index])) {
-                    currentCategory = index;
-                    rebuild();
-                }
-            });
+            }).size(46).group(group);
 
             if(Core.settings.has("SchematicsFragment" + "-" + index)){
                 button.tooltip(Core.settings.getString("SchematicsFragment" + "-" + index, ""));

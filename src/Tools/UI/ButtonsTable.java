@@ -37,7 +37,7 @@ import mindustry.gen.Unit;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
-import mindustry.input.Binding;
+import mindustry.input.DesktopInput;
 import mindustry.input.MobileInput;
 import mindustry.logic.LAssembler;
 import mindustry.logic.LExecutor;
@@ -98,15 +98,9 @@ public class ButtonsTable {
                         float speed = unit.speed() * 1.2f;
 
                         if (mobile) {
-                            //todo 待测试?
-                            MobileInput input = (MobileInput) control.input;
-
-                            movement.set(input.movement.x, input.movement.y).nor().scl(speed);
+                            movement.set(((MobileInput)control.input).movement).nor().scl(speed);
                         } else if (!Core.scene.hasField()) {
-                            float xa = Core.input.axis(Binding.moveX);
-                            float ya = Core.input.axis(Binding.moveY);
-
-                            movement.set(xa, ya).nor().scl(speed);
+                            movement.set(((DesktopInput)control.input).movement).nor().scl(speed);
                         }
                         pos.add(movement);
 
@@ -545,6 +539,27 @@ public class ButtonsTable {
                 }
             },
 
+            new FunctionButton("绘制建造列表的drawPlace", Icon.book){
+                @Override
+                public void init() {
+                    update = () -> {};
+
+                    Events.run(EventType.Trigger.draw, () -> {
+                        if (!checked) return;
+
+                        drawPlace(control.input.selectPlans);
+                        drawPlace(control.input.linePlans);
+                    });
+                }
+
+                void drawPlace(Seq<BuildPlan> plans){
+                    plans.each(bp -> {
+                        boolean valid = bp.block.canPlaceOn(world.tile(bp.x, bp.y), player.team(), bp.rotation);
+                        bp.block.drawPlace(bp.x, bp.y, bp.rotation, valid);
+                    });
+                }
+            },
+
             new FunctionButton("放置蓝图或者建筑时, 拆除建造列表下方阻挡的建筑", Icon.layers){
                 final Seq<BuildPlan> tmpPlans = new Seq<>();
                 final Seq<Building> breaks = new Seq<>();
@@ -661,8 +676,8 @@ public class ButtonsTable {
 //                        if(interval.get(15f)){
 //                            poly = type.create(Team.crux);
 //                            poly.set(building);
-//                            poly.stack.set(Items.surgeAlloy, type.itemCapacity);
 //                            poly.add();
+//                            poly.stack.set(Items.surgeAlloy, type.itemCapacity);
 //
 //                            float radius = Mathf.pow(poly.hitSize, 0.94f) * 1.25f;
 //

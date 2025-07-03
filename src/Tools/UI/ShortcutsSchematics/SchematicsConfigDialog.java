@@ -10,11 +10,9 @@ import arc.scene.ui.Image;
 import arc.scene.ui.layout.Scl;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
-import arc.util.Log;
 import arc.util.Scaling;
 import arc.util.Time;
 import mindustry.Vars;
-import mindustry.content.UnitTypes;
 import mindustry.ctype.Content;
 import mindustry.ctype.ContentType;
 import mindustry.ctype.UnlockableContent;
@@ -56,7 +54,6 @@ public class SchematicsConfigDialog extends BaseDialog {
     public static void putConfig(String contentName, Schematic schematic, int category, int index) {
         String setting = schematics.writeBase64(schematic) + "_" + contentName;
 
-        Log.info("dwadwa   " + setting);
         Core.settings.put("SchematicsFragment" + "-" + category + "-" + index, setting);
     }
 

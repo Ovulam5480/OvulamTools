@@ -12,7 +12,7 @@ buildscript{
     }
 
     repositories{
-        if(!useJitpack) maven("https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository")
+        if(!useJitpack) maven("https://maven.xpdustry.com/mindustry")
         maven("https://jitpack.io")
     }
 }
@@ -79,8 +79,7 @@ allprojects{
         maven("https://oss.sonatype.org/content/repositories/releases/")
         maven("https://raw.githubusercontent.com/GglLfr/EntityAnnoMaven/main")
 
-        // Use Zelaux's non-buggy repository for release Mindustry and Arc builds.
-        if(!useJitpack) maven("https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository")
+        if(!useJitpack) maven("https://maven.xpdustry.com/mindustry")
         maven("https://jitpack.io")
     }
 

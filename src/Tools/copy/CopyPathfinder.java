@@ -86,8 +86,9 @@ public class CopyPathfinder implements Runnable {
 
         Font f = Fonts.outline;
         Events.run(EventType.Trigger.draw, () -> {
-            Draw.z(Layer.fogOfWar+1);
-            Flowfield path = Tools.copyPathfinder.getField(1);
+            if(true)return;
+            Draw.z(Layer.fogOfWar + 1);
+            Flowfield path = Tools.copyPathfinder.getField(0);
             int[] values = path.hasComplete ? path.completeWeights : path.weights;
             if(values == null)return;
 
@@ -273,15 +274,14 @@ public class CopyPathfinder implements Runnable {
         });
     }
 
-
-    boolean a = false;
     /**
      * Thread implementation.
      */
     @Override
     public void run() {
         while (true) {
-            if (shouldUpdate && a) {
+            //Time.mark();
+            if (shouldUpdate) {
                 try {
                     if (state.isPlaying()) {
                         queue.run();
@@ -298,16 +298,18 @@ public class CopyPathfinder implements Runnable {
                             updateFrontier(data, maxUpdate);
                         }
                     }
-
-                    try {
-                        Thread.sleep(updateInterval);
-                    } catch (InterruptedException e) {
-                        //stop looping when interrupted externally
-                        return;
-                    }
                 } catch (Throwable e) {
                     e.printStackTrace();
                 }
+            }
+
+            //float elapsed = Time.elapsed(); // 单位：毫秒
+            //Log.info("耗时: @ ms", elapsed);
+
+            try {
+                Thread.sleep(updateInterval);
+            } catch (InterruptedException e) {
+                return;
             }
         }
     }
