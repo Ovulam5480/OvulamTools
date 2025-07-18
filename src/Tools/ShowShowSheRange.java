@@ -39,8 +39,6 @@ import static mindustry.Vars.*;
 
 public class ShowShowSheRange {
     private static final IntFloatMap damages = new IntFloatMap();
-    private static final IntFloatMap totalDamages = new IntFloatMap();
-    private static final Seq<Building> destoryed = new Seq<>();
 
     private final float averageLength = 0.97981f * 15;
     private final float[] radiusMulti = new float[16];
@@ -443,18 +441,16 @@ public class ShowShowSheRange {
     public void drawRange(Runnable runnable, float alpha) {
         if (alpha == 0) return;
 
-        Draw.draw(Layer.groundUnit + 1f, () -> {
+        Draw.draw(Layer.groundUnit + 1, () -> {
             buffer.begin(Color.clear);
-
             runnable.run();
-
             buffer.end();
 
-            Draw.alpha(alpha);
             Tmp.tr1.set(Draw.wrap(buffer.getTexture()));
             Tmp.tr1.flip(false, true);
 
             Draw.scl(4 / Vars.renderer.getDisplayScale());
+            Draw.alpha(alpha);
             Draw.rect(Tmp.tr1, camera.position.x, camera.position.y);
             Draw.scl();
         });

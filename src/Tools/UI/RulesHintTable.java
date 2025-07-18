@@ -42,7 +42,8 @@ public class RulesHintTable {
             table.table(bbt -> {
                 int[] i = {0};
                 banBlocks.each(bb -> {
-                    bbt.image(bb.fullIcon).size(32f).tooltip(bb.localizedName);
+                    ui.addDescTooltip(bbt.image(bb.fullIcon).size(32f).get(), bb.localizedName);
+
                     if (++i[0] == 12) bbt.row();
                 });
             }).left().row();
@@ -53,7 +54,7 @@ public class RulesHintTable {
             table.table(but -> {
                 int[] i = {0};
                 banUnits.each(bu -> {
-                    but.image(bu.fullIcon).size(32f).tooltip(bu.localizedName);
+                    ui.addDescTooltip(but.image(bu.fullIcon).size(32f).get(), bu.localizedName);
                     if (++i[0] == 12) but.row();
                 });
             }).left().row();

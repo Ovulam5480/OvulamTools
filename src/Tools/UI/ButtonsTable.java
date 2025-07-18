@@ -2,6 +2,7 @@ package Tools.UI;
 
 import Tools.Tools;
 import Tools.UI.ShortcutsSchematics.ShortcutsSchematicsTable;
+import Tools.copy.CopyPathfinder;
 import Tools.copy.PublicStaticVoids;
 import arc.Core;
 import arc.Events;
@@ -9,6 +10,7 @@ import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.Fill;
 import arc.graphics.g2d.Lines;
+import arc.graphics.gl.FrameBuffer;
 import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.math.geom.Intersector;
@@ -25,6 +27,7 @@ import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.core.GameState;
+import mindustry.core.Version;
 import mindustry.core.World;
 import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
@@ -78,17 +81,15 @@ public class ButtonsTable {
 
                 @Override
                 public void init() {
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (checked) {
-                            Draw.z(Layer.fogOfWar + 1f);
-                            if (state.rules.limitMapArea)
-                                Tmp.r1.set(state.rules.limitX * tilesize, state.rules.limitY * tilesize, state.rules.limitWidth * tilesize, state.rules.limitHeight * tilesize).grow(finalWorldBounds * 2);
-                            else world.getQuadBounds(Tmp.r1);
+                    draw = () -> {
+                        Draw.z(Layer.fogOfWar + 1f);
+                        if (state.rules.limitMapArea)
+                            Tmp.r1.set(state.rules.limitX * tilesize, state.rules.limitY * tilesize, state.rules.limitWidth * tilesize, state.rules.limitHeight * tilesize).grow(finalWorldBounds * 2);
+                        else world.getQuadBounds(Tmp.r1);
 
-                            Drawf.dashRect(Pal.remove, Tmp.r1);
-                            Draw.reset();
-                        }
-                    });
+                        Drawf.dashRect(Pal.remove, Tmp.r1);
+                        Draw.reset();
+                    };
 
                     update = () -> {
                         Unit unit = player.unit();
@@ -98,9 +99,9 @@ public class ButtonsTable {
                         float speed = unit.speed() * 1.2f;
 
                         if (mobile) {
-                            movement.set(((MobileInput)control.input).movement).nor().scl(speed);
+                            movement.set(((MobileInput) control.input).movement).nor().scl(speed);
                         } else if (!Core.scene.hasField()) {
-                            movement.set(((DesktopInput)control.input).movement).nor().scl(speed);
+                            movement.set(((DesktopInput) control.input).movement).nor().scl(speed);
                         }
                         pos.add(movement);
 
@@ -120,20 +121,26 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("PVE显示敌方进攻路线, V8适用情况暂时未知", Icon.distribution, () -> {}) {
+
+            new FunctionButton("PVE显示敌方进攻路线," + (Version.isAtLeast("150") ? "已禁用, 请等待该模组适配新版寻路" : " v150以及BE版本无法使用"), Icon.distribution, () -> {
+            }) {
                 final Color[] colors = {Pal.ammo, Pal.suppress, Liquids.water.color};
                 final Seq<Tile> spawners = new Seq<>();
                 final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
                 final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
-
-                private final BlockFlag[] randomTargets = {storage, generator, launchPad, factory, repair, battery, reactor, drill};
-
                 final IntSeq[] tileSeqs = new IntSeq[3];
+                private final BlockFlag[] randomTargets = {storage, generator, launchPad, factory, repair, battery, reactor, drill};
                 final Building[] random = new Building[randomTargets.length];
                 Tile tmp;
 
                 @Override
                 public void init() {
+                    if (Version.isAtLeast("150")){
+                        return;
+                    }
+
+                    Tools.copyPathfinder = new CopyPathfinder();
+
                     check = () -> {
                         Tools.copyPathfinder.setShouldUpdate(true);
                         addSpawners();
@@ -168,38 +175,36 @@ public class ButtonsTable {
 
                     Events.on(EventType.TileChangeEvent.class, e -> updateSpawnerPaths());
 
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (checked) {
-                            camera.bounds(Tmp.r1).grow(2 * tilesize);
-                            Draw.z(Layer.fogOfWar + 1);
+                    draw = () -> {
+                        camera.bounds(Tmp.r1).grow(2 * tilesize);
+                        Draw.z(Layer.fogOfWar + 1);
 
-                            for (int i = 0; i < tileSeqs.length; i++) {
-                                IntSeq tileSeq = tileSeqs[i];
-                                int offset = ((i + 1) * 2 - colors.length) * 2;
+                        for (int i = 0; i < tileSeqs.length; i++) {
+                            IntSeq tileSeq = tileSeqs[i];
+                            int offset = ((i + 1) * 2 - colors.length) * 2;
 
-                                drawPaths(tileSeq, Pal.gray, 3f, offset);
-                                drawPaths(tileSeq, colors[i], 1f, offset);
-                            }
+                            drawPaths(tileSeq, Pal.gray, 3f, offset);
+                            drawPaths(tileSeq, colors[i], 1f, offset);
+                        }
 
-                            Draw.color(Pal.remove, Mathf.sinDeg(Time.time * 3) * 0.3f + 0.4f);
-                            Lines.stroke(2);
+                        Draw.color(Pal.remove, Mathf.sinDeg(Time.time * 3) * 0.3f + 0.4f);
+                        Lines.stroke(2);
 
-                            if(state.rules.randomWaveAI){
-                                for (Building building : random) {
-                                    if (building != null) {
-                                        Fill.square(building.x, building.y, building.block.size * 4, 0);
-                                        Lines.square(building.x, building.y, building.block.size * 4);
-                                    }
+                        if (state.rules.randomWaveAI) {
+                            for (Building building : random) {
+                                if (building != null) {
+                                    Fill.square(building.x, building.y, building.block.size * 4, 0);
+                                    Lines.square(building.x, building.y, building.block.size * 4);
                                 }
                             }
-
-                            Draw.reset();
-                            Lines.stroke(1);
                         }
-                    });
+
+                        Draw.reset();
+                        Lines.stroke(1);
+                    };
                 }
 
-                public void addSpawners(){
+                public void addSpawners() {
                     spawners.clear();
                     buildingSpawners.clear();
                     coreSpawners.clear();
@@ -226,7 +231,7 @@ public class ButtonsTable {
                     for (int j = 0; j < tileSeq.size; j++) {
                         int tile = tileSeq.get(j);
 
-                        if(tile != -2) {
+                        if (tile != -2) {
                             int x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
                                     x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
 
@@ -273,7 +278,7 @@ public class ButtonsTable {
                         }
                     });
 
-                    if(state.rules.randomWaveAI){
+                    if (state.rules.randomWaveAI) {
                         //maximum amount of different target flag types they will attack
                         for (int i = 0; i < randomTargets.length; i++) {
                             BlockFlag target = randomTargets[i];
@@ -298,8 +303,8 @@ public class ButtonsTable {
                     while (true) {
                         Tile nextTile = Tools.copyPathfinder.getTargetTile(tmp, Tools.copyPathfinder.getField(type));
 
-                        if((tmp.pos() != tiles.peek())
-                                && Intersector.pointLineSide(tiles.peek() >>> 16, tiles.peek() & 0xFFFF, tmp.x, tmp.y, nextTile.x, nextTile.y) != 0){
+                        if ((tmp.pos() != tiles.peek())
+                                && Intersector.pointLineSide(tiles.peek() >>> 16, tiles.peek() & 0xFFFF, tmp.x, tmp.y, nextTile.x, nextTile.y) != 0) {
                             tiles.add(tmp.pos());
                         }
 
@@ -307,7 +312,7 @@ public class ButtonsTable {
                             tiles.add(tmp.pos());
                             tiles.add(-1);
                             break;
-                        } else if(tiles.contains(nextTile.pos())){
+                        } else if (tiles.contains(nextTile.pos())) {
                             tiles.add(nextTile.pos());
                             tiles.add(-2);
                             break;
@@ -341,7 +346,7 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     check = () -> {
-                        if(player.unit() == null)return;
+                        if (player.unit() == null) return;
 
                         state.teams.get(player.team()).buildings.each(b -> {
                             if (b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
@@ -370,21 +375,19 @@ public class ButtonsTable {
             }) {
                 @Override
                 public void init() {
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (checked) {
-                            Draw.color(Items.pyratite.color);
-                            PublicStaticVoids.eachCameraTiles(tile -> {
-                                if (tile.getFlammability() == 0) return;
+                    draw = () -> {
+                        Draw.color(Items.pyratite.color);
+                        PublicStaticVoids.eachCameraTiles(tile -> {
+                            if (tile.getFlammability() == 0) return;
 
-                                float a = (float) Math.atan(tile.getFlammability()) * 2 / Mathf.pi;
+                            float a = (float) Math.atan(tile.getFlammability()) * 2 / Mathf.pi;
 
-                                Draw.alpha(a);
-                                Fill.square(tile.worldx(), tile.worldy(), 4);
-                            });
+                            Draw.alpha(a);
+                            Fill.square(tile.worldx(), tile.worldy(), 4);
+                        });
 
-                            Draw.reset();
-                        }
-                    });
+                        Draw.reset();
+                    };
                 }
             },
 
@@ -467,11 +470,13 @@ public class ButtonsTable {
                 }
             },
 
+            //todo 核心瞬移
             new FunctionButton("将玩家设置到地图上点击的某个位置, \n无法瞬移的服务器在玩家14格外会有虚影显示玩家实际位置?", Icon.move) {
                 final Vec2 checkedPos = new Vec2();
                 final Vec2 playerPos = new Vec2();
                 final Tile[] tiles = new Tile[2];
                 float pr;
+
                 {
                     saveable = false;
                 }
@@ -479,7 +484,7 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     update = () -> {
-                        if(unit() == null)return;
+                        if (unit() == null) return;
 
                         if (!player.within(playerPos, tilesize * 14) && !player.within(checkedPos, tilesize)) {
                             playerPos.set(unit().x, unit().y);
@@ -514,17 +519,18 @@ public class ButtonsTable {
                     };
 
                     check = checkedPos::setZero;
-                    checkOff = () -> {};
+                    checkOff = () -> {
+                    };
 
                     Events.on(EventType.WorldLoadEvent.class, e -> checkedPos.setZero());
 
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (checked && Vars.netServer.admins.isStrict() && headless && Vars.net.active() && unit() != null) {
+                    draw = () -> {
+                        if (Vars.netServer.admins.isStrict() && headless && Vars.net.active() && unit() != null) {
                             Draw.z(Layer.effect);
                             Draw.rect(unit().type.fullIcon, playerPos.x, playerPos.y, pr - 90);
                             Draw.reset();
                         }
-                    });
+                    };
 
                     Events.on(EventType.TapEvent.class, e -> {
                         if (checked && e.player == player) {
@@ -539,20 +545,35 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("绘制建造列表的drawPlace", Icon.book){
+            new FunctionButton("放置提示常显", Icon.book) {
+                final FrameBuffer buffer = new FrameBuffer();
+
                 @Override
                 public void init() {
-                    update = () -> {};
+                    update = () -> {
+                    };
 
-                    Events.run(EventType.Trigger.draw, () -> {
-                        if (!checked) return;
+                    draw = () -> {
+                        buffer.resize(Core.graphics.getWidth(), Core.graphics.getHeight());
+                        Draw.draw(Layer.flyingUnit + 1, () -> {
+                            buffer.begin(Color.clear);
+                            drawPlaces(control.input.selectPlans);
+                            drawPlaces(control.input.linePlans);
+                            buffer.end();
 
-                        drawPlace(control.input.selectPlans);
-                        drawPlace(control.input.linePlans);
-                    });
+                            Tmp.tr1.set(Draw.wrap(buffer.getTexture()));
+                            Tmp.tr1.flip(false, true);
+
+                            Draw.scl(4 / Vars.renderer.getDisplayScale());
+
+                            Draw.mixcol(Color.white, 0.24f + Mathf.absin(Time.globalTime, 6f, 0.28f));
+                            Draw.rect(Tmp.tr1, camera.position.x, camera.position.y);
+                            Draw.reset();
+                        });
+                    };
                 }
 
-                void drawPlace(Seq<BuildPlan> plans){
+                void drawPlaces(Seq<BuildPlan> plans) {
                     plans.each(bp -> {
                         boolean valid = bp.block.canPlaceOn(world.tile(bp.x, bp.y), player.team(), bp.rotation);
                         bp.block.drawPlace(bp.x, bp.y, bp.rotation, valid);
@@ -560,7 +581,7 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("放置蓝图或者建筑时, 拆除建造列表下方阻挡的建筑", Icon.layers){
+            new FunctionButton("放置蓝图或者建筑时, 拆除建造列表下方阻挡的建筑", Icon.layers) {
                 final Seq<BuildPlan> tmpPlans = new Seq<>();
                 final Seq<Building> breaks = new Seq<>();
 
@@ -572,11 +593,8 @@ public class ButtonsTable {
                         coverPlace(e.tile.x, e.tile.y);
                     });
 
-                    Events.run(EventType.Trigger.draw, () -> {
-                        tmpPlans.each(bp -> bp.block.drawPlan(bp, tmpPlans, true, (Mathf.sinDeg(Time.time * 15) + 3) / 4f));
-                    });
-
-                    check = () -> {};
+                    check = () -> {
+                    };
 
                     checkOff = () -> {
                         tmpPlans.clear();
@@ -584,19 +602,21 @@ public class ButtonsTable {
                     };
 
                     update = () -> {
-                        if(tmpPlans.size > 0 && player.unit() != null && player.unit().plans.size == 0){
+                        if (tmpPlans.size > 0 && player.unit() != null && player.unit().plans.size == 0) {
                             tmpPlans.each(p -> player.unit().plans.add(p));
                             tmpPlans.clear();
                         }
                     };
+
+                    draw = () -> tmpPlans.each(bp -> bp.block.drawPlan(bp, tmpPlans, true, (Mathf.sinDeg(Time.time * 15) + 3) / 4f));
                 }
 
                 public void coverPlace(int spx, int spy) {
                     Tile tile = world.tile(spx, spy);
-                    if(tile == null)return;
+                    if (tile == null) return;
 
                     Unit unit = Vars.player.unit();
-                    if(unit == null)return;
+                    if (unit == null) return;
 
                     control.input.selectPlans.each(bp -> {
                         if (bp.build() != null && bp.build().block == bp.block && bp.build().tileX() == bp.x && bp.build().tileY() == bp.y) {
@@ -614,10 +634,10 @@ public class ButtonsTable {
                                 Building building = Vars.world.build(x, y);
                                 Tile worldTile = world.tile(x, y);
 
-                                if(worldTile == null)return;
+                                if (worldTile == null) return;
 
                                 //不拆除能被替换的建筑: 防止出现玩家建造能够替换的建筑时, 由于 被替换的建筑的拆除计划 仍然存在导致的建造列表错误
-                                if (!canReplace(bp, worldTile)){
+                                if (!canReplace(bp, worldTile)) {
                                     if (building != null) {
                                         if (breaks.contains(building)) continue;
                                         breaks.addUnique(building);
@@ -635,18 +655,20 @@ public class ButtonsTable {
                 }
             },
 
-            new FunctionButton("暂停器, 用于暂停游戏", Icon.pause){
+            new FunctionButton("暂停器, 用于暂停游戏", Icon.pause) {
+                boolean shouldPause;
+
                 {
                     saveable = false;
                 }
-                boolean shouldPause;
+
                 @Override
                 public void init() {
                     update = () -> {
-                        if(shouldPause){
+                        if (shouldPause) {
                             state.set(GameState.State.paused);
                             shouldPause = false;
-                        }else if (state.isGame() && !state.isPaused()){
+                        } else if (state.isGame() && !state.isPaused()) {
                             shouldPause = true;
                         }
                     };
@@ -718,17 +740,18 @@ public class ButtonsTable {
                         function.icon,
                         !function.hasSwitch() ? Styles.clearNonei : Styles.clearNoneTogglei,
                         () -> {
-                            if(function.check != null){
+                            if (function.check != null) {
                                 (function.checked ? function.checkOff : function.check).run();
                             }
 
-                            if(function.hasSwitch()){
+                            if (function.hasSwitch()) {
                                 function.checked = !function.checked;
                                 Core.settings.put("tools-functions-" + j, function.checked);
                             }
 
-                        }).size(46).checked(b -> function.checked).tooltip(function.description).margin(10).get();
+                        }).size(46).checked(b -> function.checked).margin(10).get();
                 imageButton.resizeImage(32);
+                ui.addDescTooltip(imageButton, function.description);
 
                 if (i % rowWidth == rowWidth - 1) buttonsTable.row();
 
@@ -745,6 +768,12 @@ public class ButtonsTable {
                 if (function.update != null && function.checked) function.update.run();
             }
         });
+
+        Events.run(EventType.Trigger.draw, () -> {
+            for (FunctionButton function : functionButtons) {
+                if (function.draw != null && function.checked) function.draw.run();
+            }
+        });
     }
 
 
@@ -752,7 +781,7 @@ public class ButtonsTable {
         public String description;
         public Drawable icon;
         public boolean checked;
-        public Runnable update, check, checkOff;
+        public Runnable update, draw, check, checkOff;
         public boolean saveable = true;
 
         public FunctionButton(String description, Drawable icon) {
@@ -784,7 +813,7 @@ public class ButtonsTable {
         public void init() {
         }
 
-        public boolean hasSwitch(){
+        public boolean hasSwitch() {
             return checkOff != null || update != null;
         }
     }

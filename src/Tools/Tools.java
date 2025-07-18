@@ -1,5 +1,6 @@
 package Tools;
 
+import Tools.UI.ReadjustDialog;
 import Tools.UI.ToolsWindows;
 import Tools.UI.UpdaterTable;
 import Tools.copy.CopyPathfinder;
@@ -33,8 +34,6 @@ public class Tools extends Mod{
 
     @Override
     public void init(){
-        copyPathfinder = new CopyPathfinder();
-        
         ui.settings.addCategory("工具箱设置", Icon.chartBar, st -> {
             st.checkPref("禁用弹药范围显示, 重启生效", false);
             st.checkPref("详细溅射范围", false);
@@ -58,13 +57,9 @@ public class Tools extends Mod{
             Planets.serpulo.campaignRules.legacyLaunchPads = Core.settings.getBool("启用旧版发射台与旧版发射方式");
 
             st.checkPref("禁用快捷蓝图表, 重启生效", false);
-            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 4, 24, 1, i -> {
+            st.sliderPref("快捷蓝图与蓝图分类行数", 5, 5, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
                 return i + "行";
-            });
-            st.sliderPref("快捷蓝图列数", 5, 4, 24, 1, i -> {
-                Events.fire(tableChangeEvent);
-                return i + "列";
             });
             st.sliderPref("蓝图分类列数", 2, 1, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
@@ -103,6 +98,7 @@ public class Tools extends Mod{
             Core.scene.add(buttonGroup);
 
             windows = new ToolsWindows(buttonGroup);
+            ReadjustDialog.applySettings();
 
             Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
             if(!fi.exists() || !fi.isDirectory()){
@@ -182,8 +178,6 @@ public class Tools extends Mod{
             mod.meta.author = (Mathf.random(8999) + 1000) + "";
         });
     }
-
-    public static int iconSize = 46;
 
     public static class TableChangeEvent{
     }

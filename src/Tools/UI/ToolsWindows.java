@@ -16,6 +16,7 @@ import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Stack;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
+import arc.util.Time;
 import mindustry.game.EventType;
 import mindustry.gen.Icon;
 import mindustry.gen.Tex;
@@ -28,6 +29,7 @@ public class ToolsWindows {
 
     ResourcesCalculator resourcesCalculator = new ResourcesCalculator();
     ShortcutsSchematicsTable schematicsTable;
+    public ReadjustDialog readjustDialog = new ReadjustDialog();
 
     private final Group parent;
 
@@ -131,6 +133,7 @@ public class ToolsWindows {
 
                 addOptionButton(optionTable, Icon.list, Mode.buttons);
                 addOptionButton(optionTable, Icon.zoom, Mode.ores);
+                optionTable.button(Icon.filters, Styles.clearNonei, () -> readjustDialog.show());
                 addOptionButton(optionTable, Icon.save, Mode.scripts);
 //                addOptionButton(optionTable, Icon.github, Mode.update).update(b -> {
 //                    b.setDisabled(!UpdaterTable.hasBuild);
@@ -151,7 +154,7 @@ public class ToolsWindows {
             if (Core.settings.getBool("保存设定的工具表的位置")) {
                 applyPosition();
             } else {
-                window.setPosition(clampX(0, 0), clampY(0, 0));
+                Time.run(10f, () -> window.setPosition(clampX(0, 0), clampY(0, 0)));
             }
 
             inited = true;
@@ -211,8 +214,6 @@ public class ToolsWindows {
     }
 
     public int clampY(float value, float offset){
-        //Log.info(getGroupHeight() + " " + (child.getHeight()) + " " + maxHeight + " " + childchild.getHeight());
-        //value++;
         return (int) Mathf.clamp(value, child.getHeight() / 2 + offset, getGroupHeight() + maxHeight / 2f + offset);
     }
 

@@ -57,10 +57,14 @@ public class ShortcutsSchematicsTable {
         schematicsAndCategoryTable.add(categoryTable).growY();
 
         schematicsAndCategoryTable.table(Tex.pane, t -> {
-            t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).tooltip("按下后点击删除蓝图或者分类的提示").row();
-            t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).tooltip("按下后点击更新为蓝图库内同名蓝图").row();
-            t.button(Icon.edit, Styles.clearNoneTogglei, () -> editMode = !editMode).size(46).tooltip("按下后点击编辑蓝图名称, 或编辑分类的提示").row();
-            t.button(Icon.eye, Styles.clearNoneTogglei, () -> view = !view).size(46).tooltip("蓝图预览").row();
+            ui.addDescTooltip(t.button(Icon.trash, Styles.clearNoneTogglei, () -> clearMode = !clearMode).size(46).get(), "按下后点击删除蓝图或者分类的提示");
+            t.row();
+            ui.addDescTooltip(t.button(Icon.refresh, Styles.clearNoneTogglei, () -> syncMode = !syncMode).size(46).get(), "按下后点击更新为蓝图库内同名蓝图");
+            t.row();
+            ui.addDescTooltip(t.button(Icon.edit, Styles.clearNoneTogglei, () -> editMode = !editMode).size(46).get(), "按下后点击编辑蓝图名称, 或编辑分类的提示");
+            t.row();
+            ui.addDescTooltip(t.button(Icon.eye, Styles.clearNoneTogglei, () -> view = !view).size(46).get(), "蓝图预览");
+            t.row();
             t.add().growY();
             
         }).margin(10).growY();
@@ -259,7 +263,11 @@ public class ShortcutsSchematicsTable {
                         rebuildCat();
                     });
                 } else {
-                    currentCategory = index;
+                    try {
+                        currentCategory = index;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                     rebuild();
                 }
             }).size(46).group(group);
