@@ -35,8 +35,13 @@ jobs:
           path: build/libs/OvulamTools.jar
           if-no-files-found: error
           compression-level: 0
+      - name: Rename artifact for release
+        if: github.event_name == 'release' && github.event.action == 'created'
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          mv build/libs/OvulamTools.jar build/libs/OvulamTools-${TAG_NAME}.jar
       - name: Upload built mod artifact into release
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'release' && github.event.action == 'created'
         with:
-          files: build/libs/OvulamTools.jar
+          files: build/libs/OvulamTools-*.jar

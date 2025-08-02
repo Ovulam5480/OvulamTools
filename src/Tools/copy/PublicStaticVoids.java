@@ -113,6 +113,8 @@ public class PublicStaticVoids {
         }else{
             boolean valid = false;
 
+            if(state.teams.playerCores().isEmpty())return null;
+
             Building firstCore = state.teams.playerCores().first();
             Tmp.v1.set(firstCore).sub(core).limit(coreMargin + core.block.size * tilesize /2f * Mathf.sqrt2);
 
