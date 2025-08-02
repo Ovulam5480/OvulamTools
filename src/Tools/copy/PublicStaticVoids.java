@@ -46,7 +46,9 @@ public class PublicStaticVoids {
         camera.bounds(Tmp.r1).grow(2 * tilesize);
         Tmp.r2.set(0, 0, (world.width() - 1) * tilesize, (world.height() - 1) * tilesize);
 
-        Intersector.intersectRectangles(Tmp.r1, Tmp.r2, Tmp.r3);
+        if(!Intersector.intersectRectangles(Tmp.r1, Tmp.r2, Tmp.r3)){
+            return;
+        }
 
         for (int i = 0; i < Tmp.r3.width; i = i + tilesize) {
             for (int j = 0; j < Tmp.r3.height; j = j + tilesize) {

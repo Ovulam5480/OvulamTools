@@ -29,9 +29,10 @@ public class PathSpawners {
             if (!waves()) return;
 
             if (e.unit.team == waveTeam() && e.spawner != null) {
-                Tile spawnTile = getSpawnerTile(e.spawner.pos());
+                int type = e.unit.type.flowfieldPathType;
+                spawners.put(e.spawner.tile.pos(), 1 << type);
 
-                spawners.put(spawnTile.pos(), 1 << e.unit.type.flowfieldPathType);
+                if(!hasType[type] && type != 4)hasType[type] = true;
             }
         });
 
@@ -47,11 +48,12 @@ public class PathSpawners {
 
     public void eachSpawnerTiles(Cons2<Tile, Integer> get){
         spawners.forEach(e -> {
-            int pathType = e.value;
+            Tile tile = getSpawnerTile(e.key);
+            if(tile == null)return;
 
+            int pathType = e.value;
             for (int i = 0; i < 6; i++){
                 if(hasType[i] && ((pathType >> i) & 1) == 1){
-                    Tile tile = getSpawnerTile(e.key);
                     get.get(tile, i);
                 }
             }
