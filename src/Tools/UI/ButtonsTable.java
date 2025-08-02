@@ -1,33 +1,32 @@
 package Tools.UI;
 
-import Tools.Tools;
+import Tools.OvulamTools;
+import Tools.PathSpawners;
 import Tools.UI.ShortcutsSchematics.ShortcutsSchematicsTable;
-import Tools.copy.CopyPathfinder;
+import Tools.copy.ClientPathfinder;
 import Tools.copy.PublicStaticVoids;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
-import arc.graphics.g2d.Draw;
-import arc.graphics.g2d.Fill;
-import arc.graphics.g2d.Lines;
+import arc.graphics.g2d.*;
 import arc.graphics.gl.FrameBuffer;
 import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.math.geom.Intersector;
 import arc.math.geom.Vec2;
+import arc.scene.Element;
 import arc.scene.style.Drawable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
+import arc.scene.ui.TextButton;
+import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
-import arc.struct.IntSeq;
-import arc.struct.ObjectMap;
-import arc.struct.Seq;
-import arc.util.Time;
-import arc.util.Tmp;
+import arc.struct.*;
+import arc.util.*;
+import arc.util.pooling.Pools;
 import mindustry.Vars;
 import mindustry.content.*;
 import mindustry.core.GameState;
-import mindustry.core.Version;
 import mindustry.core.World;
 import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
@@ -47,35 +46,52 @@ import mindustry.logic.LExecutor;
 import mindustry.logic.LUnitControl;
 import mindustry.type.Item;
 import mindustry.type.UnitType;
+import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
+import mindustry.ui.dialogs.SettingsMenuDialog;
 import mindustry.world.Block;
 import mindustry.world.Tile;
 import mindustry.world.blocks.ConstructBlock;
 import mindustry.world.blocks.environment.Prop;
 import mindustry.world.blocks.logic.LogicBlock;
-import mindustry.world.blocks.payloads.PayloadBlock;
 import mindustry.world.blocks.storage.CoreBlock;
-import mindustry.world.blocks.units.UnitAssembler;
 import mindustry.world.meta.BlockFlag;
 import mindustry.world.meta.BlockStatus;
 
 import java.util.Arrays;
 
 import static Tools.type.SchematicPlacer.canReplace;
-import static arc.Core.camera;
+import static arc.Core.*;
 import static mindustry.Vars.*;
 import static mindustry.world.meta.BlockFlag.*;
 import static mindustry.world.meta.BlockFlag.drill;
 
 public class ButtonsTable {
-    private final FunctionButton[] functionButtons = new FunctionButton[]{
-            new FunctionButton("让玩家单位转圈圈", Icon.rotate, () -> {
-                Unit unit = player.unit();
-                if (unit == null) return;
-                unit.rotation = unit.type.rotateSpeed * unit.speedMultiplier * Time.time * 1.2f;
-            }),
+    FunctionButton lastChecked;
 
-            new FunctionButton("让玩家控制的单位无视单位方向, 总是以单位的1.2倍最大速度的移动", Icon.right, () -> {
+    private final FunctionButton[] functionButtons = new FunctionButton[]{
+            new FunctionButton("玩家单位转圈圈", Icon.rotate){
+                float rotateSpeed = settings.getInt("旋转速度倍率") / 100f;
+
+                @Override
+                public void init() {
+                    update = () -> {
+                        Unit unit = playerUnit();
+                        if (unit == null) return;
+                        unit.rotation = unit.type.rotateSpeed * unit.speedMultiplier * Time.time * rotateSpeed;
+                    };
+                }
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.sliderPref("旋转速度倍率", 120, 50, 500, i -> {
+                        rotateSpeed = i / 100f;
+                        return i + "%";
+                    });
+                }
+            },
+
+            new FunctionButton("玩家单位无惯性移动", Icon.right, () -> {
             }) {
                 final Vec2 movement = new Vec2(), pos = new Vec2();
 
@@ -92,7 +108,7 @@ public class ButtonsTable {
                     };
 
                     update = () -> {
-                        Unit unit = player.unit();
+                        Unit unit = playerUnit();
                         if (unit == null) return;
 
                         pos.set(unit.x, unit.y);
@@ -122,76 +138,80 @@ public class ButtonsTable {
             },
 
 
-            new FunctionButton("PVE显示敌方进攻路线," + (Version.isAtLeast("150") ? "已禁用, 请等待该模组适配新版寻路" : " v150以及BE版本无法使用"), Icon.distribution, () -> {
+            new FunctionButton("生存模式显示敌方陆军进攻路线", Icon.distribution, () -> {
             }) {
-                final Color[] colors = {Pal.ammo, Pal.suppress, Liquids.water.color};
-                final Seq<Tile> spawners = new Seq<>();
-                final ObjectMap<Tile, Integer> buildingSpawners = new ObjectMap<>();
-                final ObjectMap<Building, Tile> coreSpawners = new ObjectMap<>();
-                final IntSeq[] tileSeqs = new IntSeq[3];
+                final ArrayMap<Color, IntSeq> pathPoints = new ArrayMap<>(Color.class, IntSeq.class);
+                ClientPathfinder pathfinder;
+                PathSpawners spawners;
+
                 private final BlockFlag[] randomTargets = {storage, generator, launchPad, factory, repair, battery, reactor, drill};
-                final Building[] random = new Building[randomTargets.length];
+                final Building[] targets = new Building[randomTargets.length];
                 Tile tmp;
 
                 @Override
                 public void init() {
-                    if (Version.isAtLeast("150")){
-                        return;
-                    }
+                    pathfinder = OvulamTools.clientPathfinder = new ClientPathfinder(checked);
+                    spawners = OvulamTools.pathSpawners = new PathSpawners();
 
-                    Tools.copyPathfinder = new CopyPathfinder();
+                    Color[] colors = {Pal.ammo, Color.valueOf("bf92f9"), Liquids.water.color, Liquids.neoplasm.color, Pal.remove, Pal.accent};
+
+                    for (Color color : colors) {
+                        pathPoints.put(color, new IntSeq());
+                    }
 
                     check = () -> {
-                        Tools.copyPathfinder.setShouldUpdate(true);
-                        addSpawners();
+                        pathfinder.setEnabled(true);
+                        initSpawners();
                     };
-                    checkOff = () -> Tools.copyPathfinder.setShouldUpdate(false);
+                    checkOff = () -> pathfinder.setEnabled(false);
 
-                    for (int i = 0; i < 3; i++) {
-                        tileSeqs[i] = new IntSeq();
-                    }
+                    Events.on(EventType.WorldLoadEvent.class, e -> {
+                        if(checked)initSpawners();
+                    });
 
-                    Events.on(EventType.WorldLoadEvent.class, e -> addSpawners());
+                    Events.on(ClientPathfinder.FinishedFrontier.class, e -> updateAllPathPoints());
 
-                    Events.on(EventType.UnitCreateEvent.class, e -> {
-                        if (!state.rules.pvp && e.unit.team != player.team() && e.unit.isGrounded() && e.spawner != null) {
-                            Tile spawnTile = spawnTile(e.spawner);
+                    Events.on(EventType.TileChangeEvent.class, e -> {
+                        Time.run(2f, this::updateAllPathPoints);//updateAllPathPoints()
 
-                            if (spawnTile != null && !spawnTile.solid()) {
-                                //buildingSpawners.put(spawnTile, e.unit.pathType());
-                                //todo
-                                buildingSpawners.put(spawnTile, 0);
+                        if (state.rules.randomWaveAI) {
+                            Arrays.fill(targets, null);
+                            for (int i = 0; i < randomTargets.length; i++) {
+                                BlockFlag target = randomTargets[i];
+                                var targets = indexer.getEnemy(state.rules.waveTeam, target);
+                                if (!targets.isEmpty()) {
+                                    for (Building other : targets) {
+                                        if ((other.items != null && other.items.any()) || other.status() != BlockStatus.noInput) {
+                                            this.targets[i] = other;
+                                        }
+                                    }
+                                }
                             }
                         }
                     });
-
-                    Events.on(EventType.BlockDestroyEvent.class, e -> {
-                        Building spawner = e.tile.build;
-                        if (spawner == null || spawner.team == state.rules.defaultTeam) return;
-
-                        if (spawner.block instanceof PayloadBlock) buildingSpawners.remove(e.tile);
-                        else if (spawner.block instanceof CoreBlock) coreSpawners.remove(e.tile.build);
-                    });
-
-                    Events.on(EventType.TileChangeEvent.class, e -> updateSpawnerPaths());
 
                     draw = () -> {
                         camera.bounds(Tmp.r1).grow(2 * tilesize);
                         Draw.z(Layer.fogOfWar + 1);
 
-                        for (int i = 0; i < tileSeqs.length; i++) {
-                            IntSeq tileSeq = tileSeqs[i];
-                            int offset = ((i + 1) * 2 - colors.length) * 2;
+                        int i = 0;
+                        for (ObjectMap.Entry<Color, IntSeq> entry : pathPoints) {
+                            IntSeq tileSeq = entry.value;
 
-                            drawPaths(tileSeq, Pal.gray, 3f, offset);
-                            drawPaths(tileSeq, colors[i], 1f, offset);
+                            int offsetx = Geometry.d8(i).x * 2;
+                            int offsety = Geometry.d8(i).y * 2;
+
+                            drawPaths(tileSeq, Pal.gray, 2f, offsetx, offsety);
+                            drawPaths(tileSeq, entry.key, 0.65f, offsetx, offsety);
+
+                            i++;
                         }
 
                         Draw.color(Pal.remove, Mathf.sinDeg(Time.time * 3) * 0.3f + 0.4f);
                         Lines.stroke(2);
 
                         if (state.rules.randomWaveAI) {
-                            for (Building building : random) {
+                            for (Building building : targets) {
                                 if (building != null) {
                                     Fill.square(building.x, building.y, building.block.size * 4, 0);
                                     Lines.square(building.x, building.y, building.block.size * 4);
@@ -204,25 +224,14 @@ public class ButtonsTable {
                     };
                 }
 
-                public void addSpawners() {
-                    spawners.clear();
-                    buildingSpawners.clear();
-                    coreSpawners.clear();
-                    for (IntSeq tileSeq : tileSeqs) {
-                        tileSeq.clear();
-                    }
+                public void initSpawners() {
+                    spawners.init();
+                    pathfinder.init();
 
-                    if (!state.rules.pvp) {
-                        PublicStaticVoids.eachGroundSpawn(-1, (t, b, c) -> {
-                            if (b) spawners.add(t);
-                            else coreSpawners.put(c, t);
-                        });
-                    }
-
-                    updateSpawnerPaths();
+                    updateAllPathPoints();
                 }
 
-                public void drawPaths(IntSeq tileSeq, Color color, float thick, int offset) {
+                public void drawPaths(IntSeq tileSeq, Color color, float thick, int offsetx, int offsety) {
                     int lastTile = -1;
 
                     Lines.stroke(thick);
@@ -232,8 +241,8 @@ public class ButtonsTable {
                         int tile = tileSeq.get(j);
 
                         if (tile != -2) {
-                            int x1 = (tile >>> 16) * 8 + offset, y1 = (tile & 0xFFFF) * 8 + offset,
-                                    x2 = (lastTile >>> 16) * 8 + offset, y2 = (lastTile & 0xFFFF) * 8 + offset;
+                            int x1 = (tile >>> 16) * 8 + offsetx, y1 = (tile & 0xFFFF) * 8 + offsety,
+                                    x2 = (lastTile >>> 16) * 8 + offsetx, y2 = (lastTile & 0xFFFF) * 8 + offsety;
 
                             boolean containTo = Tmp.r1.contains(x1, y1), containFrom = Tmp.r1.contains(x2, y2);
 
@@ -250,58 +259,41 @@ public class ButtonsTable {
                     }
                 }
 
-                public Tile spawnTile(Building spawner) {
-                    int radius = (spawner.block instanceof UnitAssembler a ? a.areaSize : 0) + spawner.block.size * 4 + 1;
-                    int ox = Geometry.d4x(spawner.rotation) * radius;
-                    int oy = Geometry.d4y(spawner.rotation) * radius;
+                public void updateAllPathPoints() {
+                    pathPoints.forEach(e -> e.value.clear());
 
-                    return world.tileWorld(spawner.x + ox, spawner.y + oy);
+                    spawners.eachSpawnerTiles(this::updatePathPoints);
                 }
 
-                public void updateSpawnerPaths() {
-                    for (IntSeq tileSeq : tileSeqs) {
-                        tileSeq.clear();
-                    }
-                    Arrays.fill(random, null);
+                public void updatePathPoints(Tile tile, int type) {
+                    IntSeq tiles = pathPoints.getValueAt(type);
+                    if(type == 0 && tile.dangerous()){
+                        Tile[] hasSafe = {null};
 
-                    spawners.each(tile -> {
-                        for (int i = 0; i < colors.length; i++) {
-                            updatePaths(tile, i);
-                        }
-                    });
-
-                    buildingSpawners.each(this::updatePaths);
-
-                    coreSpawners.values().toSeq().each(tile -> {
-                        for (int i = 0; i < colors.length; i++) {
-                            updatePaths(tile, i);
-                        }
-                    });
-
-                    if (state.rules.randomWaveAI) {
-                        //maximum amount of different target flag types they will attack
-                        for (int i = 0; i < randomTargets.length; i++) {
-                            BlockFlag target = randomTargets[i];
-                            var targets = indexer.getEnemy(state.rules.waveTeam, target);
-                            if (!targets.isEmpty()) {
-                                for (Building other : targets) {
-                                    if ((other.items != null && other.items.any()) || other.status() != BlockStatus.noInput) {
-                                        random[i] = other;
+                        loop : for(int i = 1; i <= 3; i++){
+                            for(int j = -i; j <= i; j++){
+                                for(int k = -i; k <= i; k++){
+                                    if(Math.abs(j) == i || Math.abs(k) == i){
+                                        Tile t = tile.nearby(j, k);
+                                        if(t != null && !t.dangerous()){
+                                            hasSafe[0] = t;
+                                            break loop;
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                }
 
-                public void updatePaths(Tile tile, int type) {
-                    IntSeq tiles = tileSeqs[type];
+                        if(hasSafe[0] != null) tile = hasSafe[0];
+                        else return;
+                    }
+
                     tiles.add(tile.pos());
 
                     tmp = tile;
 
                     while (true) {
-                        Tile nextTile = Tools.copyPathfinder.getTargetTile(tmp, Tools.copyPathfinder.getField(type));
+                        Tile nextTile = pathfinder.getTargetTile(tmp, pathfinder.getField(type));
 
                         if ((tmp.pos() != tiles.peek())
                                 && Intersector.pointLineSide(tiles.peek() >>> 16, tiles.peek() & 0xFFFF, tmp.x, tmp.y, nextTile.x, nextTile.y) != 0) {
@@ -321,10 +313,64 @@ public class ButtonsTable {
                         tmp = nextTile;
                     }
                 }
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.sliderPref("算法最大计算时间", 16, 1, 100, 1, i -> {
+                        pathfinder.fleshTime = i * 100000;
+
+                        return (i / 10f) + "ms";
+                    });
+                    st.sliderPref("寻路代价类型", 1, 0, 5, i -> {
+                        if(!spawners.hasType[i]){
+                            return "波次中不存在使用该类寻路代价的敌人";
+                        }
+
+                        pathfinder.drawValueType = i;
+                        return switch (i) {
+                            case 0 -> "陆军单位";
+                            case 1 -> "爬行单位";
+                            case 2 -> "海军单位";
+                            case 3 -> "瘤虫单位";
+                            case 4 -> "空军单位";
+                            case 5 -> "悬浮单位";
+                            default -> "其他";
+                        };
+                    });
+                    st.checkPref("流场数据可视化", false, b -> pathfinder.drawValue = b);
+                    st.checkPref("流场数据直显", false, b -> pathfinder.printValue = b);
+                }
+
+                @Override
+                public void buildTable(Table table) {
+                    table.add(new Element(){
+                        @Override
+                        public void draw() {
+                            Font font = Fonts.outline;
+                            GlyphLayout lay = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
+                            String text1 = "呱呱呱呱呱呱呱呱呱呱: 100000 \n \n \n";
+                            lay.setText(font, text1);
+
+                            int length = pathfinder.getField(pathfinder.drawValueType).frontier.size;
+                            String text = "该类型剩余待更新边界: " + length + "\n上一帧新增: " + pathfinder.addedFrontier + "\n" + "遍历轮次: " + pathfinder.getField(pathfinder.drawValueType).search;
+
+                            float red = Mathf.clamp(length / 4000f - 0.4f, 0, 1);
+                            font.setColor(1, 1 - red, 1 - red, 1f);
+                            font.getCache().clear();
+                            font.getCache().addText(text, x + width / 2f - lay.width / 2f, y + height / 2f + lay.height / 2f - 7f);
+                            font.getCache().draw(parentAlpha);
+
+                            font.setColor(1, 1, 1, 1f);
+                            Pools.free(lay);
+                        }
+                    }).height(40f);
+
+                    table.marginTop(10).marginBottom(10);
+                }
             },
 
             new FunctionButton("拆除地图上所有的石头", Icon.spray, () -> {
-                Unit unit = player.unit();
+                Unit unit = playerUnit();
                 if (unit == null) return;
 
                 world.tiles.eachTile(tile -> {
@@ -336,8 +382,8 @@ public class ButtonsTable {
             }, null),
 
             new FunctionButton("拆除地图上所有的废墟", Icon.spray, () -> {
-                if (player.unit() == null) return;
-                state.teams.get(Team.derelict).buildings.each(b -> player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY())));
+                if (playerUnit() == null) return;
+                state.teams.get(Team.derelict).buildings.each(b -> playerUnit().plans.add(new BuildPlan(b.tileX(), b.tileY())));
             }, null),
 
             new FunctionButton("拆除地图上所有病毒逻辑和非玩家建造的潜在病毒逻辑", Icon.spray, () -> {
@@ -346,15 +392,15 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     check = () -> {
-                        if (player.unit() == null) return;
+                        if (playerUnit() == null) return;
 
                         state.teams.get(player.team()).buildings.each(b -> {
                             if (b instanceof ConstructBlock.ConstructBuild cb && cb.current instanceof LogicBlock
                                     && cb.lastConfig instanceof LogicBlock.LogicBuild lb && isVirus(lb)) {
 
-                                player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
+                                playerUnit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
                             } else if ((b instanceof LogicBlock.LogicBuild lb && isVirus(lb))) {
-                                player.unit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
+                                playerUnit().plans.add(new BuildPlan(b.tileX(), b.tileY()));
                                 Fx.ripple.at(b.tileX(), b.tileY(), 40, Pal.heal);
                             }
                         });
@@ -398,7 +444,7 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     update = () -> {
-                        Unit unit = player.unit();
+                        Unit unit = playerUnit();
                         CoreBlock.CoreBuild core = player.closestCore();
 
                         if (unit == null || core == null) return;
@@ -468,10 +514,15 @@ public class ButtonsTable {
                     }
                     return false;
                 }
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.sliderPref("自动挖矿阈值", 1000, 100, 3500, 100, i -> i + "物品");
+                }
             },
 
             //todo 核心瞬移
-            new FunctionButton("将玩家设置到地图上点击的某个位置, \n无法瞬移的服务器在玩家14格外会有虚影显示玩家实际位置?", Icon.move) {
+            new FunctionButton("将玩家设置到地图上点击的某个位置, \n注意服务器无法瞬移", Icon.move) {
                 final Vec2 checkedPos = new Vec2();
                 final Vec2 playerPos = new Vec2();
                 final Tile[] tiles = new Tile[2];
@@ -484,20 +535,22 @@ public class ButtonsTable {
                 @Override
                 public void init() {
                     update = () -> {
-                        if (unit() == null) return;
+                        Unit unit = playerUnit();
+
+                        if (unit == null) return;
 
                         if (!player.within(playerPos, tilesize * 14) && !player.within(checkedPos, tilesize)) {
-                            playerPos.set(unit().x, unit().y);
-                            pr = player.unit().rotation;
+                            playerPos.set(unit.x, unit.y);
+                            pr = unit.rotation;
                         }
 
-                        if (!checkedPos.isZero() && !unit().within(checkedPos, 0.01f)) {
-                            if (!unit().type.canBoost && !unit().type.flying) {
-                                tiles[1] = unit().tileOn();
-                                World.raycastEachWorld(unit().x, unit().y, checkedPos.x, checkedPos.y, (x, y) -> {
+                        if (!checkedPos.isZero() && !unit.within(checkedPos, 0.01f)) {
+                            if (!unit.type.canBoost && !unit.type.flying) {
+                                tiles[1] = unit.tileOn();
+                                World.raycastEachWorld(unit.x, unit.y, checkedPos.x, checkedPos.y, (x, y) -> {
                                     Tile tile = world.tile(x, y);
 
-                                    if (tile == null || !unit().canPass(x, y)) {
+                                    if (tile == null || !unit.canPass(x, y)) {
                                         return true;
                                     }
 
@@ -514,7 +567,7 @@ public class ButtonsTable {
 
                                 checkedPos.set(tile.worldx(), tile.worldy());
                             }
-                            unit().set(checkedPos);
+                            unit.set(checkedPos);
                         }
                     };
 
@@ -525,9 +578,9 @@ public class ButtonsTable {
                     Events.on(EventType.WorldLoadEvent.class, e -> checkedPos.setZero());
 
                     draw = () -> {
-                        if (Vars.netServer.admins.isStrict() && headless && Vars.net.active() && unit() != null) {
+                        if (Vars.netServer.admins.isStrict() && headless && Vars.net.active() && playerUnit() != null) {
                             Draw.z(Layer.effect);
-                            Draw.rect(unit().type.fullIcon, playerPos.x, playerPos.y, pr - 90);
+                            Draw.rect(playerUnit().type.fullIcon, playerPos.x, playerPos.y, pr - 90);
                             Draw.reset();
                         }
                     };
@@ -539,14 +592,11 @@ public class ButtonsTable {
                         }
                     });
                 }
-
-                private Unit unit() {
-                    return player.unit();
-                }
             },
 
-            new FunctionButton("放置提示常显", Icon.book) {
+            new FunctionButton("放置提示显示", Icon.book) {
                 final FrameBuffer buffer = new FrameBuffer();
+                float alpha = settings.getInt("绘制透明度") / 100f;
 
                 @Override
                 public void init() {
@@ -567,6 +617,7 @@ public class ButtonsTable {
                             Draw.scl(4 / Vars.renderer.getDisplayScale());
 
                             Draw.mixcol(Color.white, 0.24f + Mathf.absin(Time.globalTime, 6f, 0.28f));
+                            Draw.alpha(alpha);
                             Draw.rect(Tmp.tr1, camera.position.x, camera.position.y);
                             Draw.reset();
                         });
@@ -577,6 +628,14 @@ public class ButtonsTable {
                     plans.each(bp -> {
                         boolean valid = bp.block.canPlaceOn(world.tile(bp.x, bp.y), player.team(), bp.rotation);
                         bp.block.drawPlace(bp.x, bp.y, bp.rotation, valid);
+                    });
+                }
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.sliderPref("绘制透明度", 100, 0, 100, i -> {
+                        alpha = i / 100f;
+                        return i + "%";
                     });
                 }
             },
@@ -602,8 +661,8 @@ public class ButtonsTable {
                     };
 
                     update = () -> {
-                        if (tmpPlans.size > 0 && player.unit() != null && player.unit().plans.size == 0) {
-                            tmpPlans.each(p -> player.unit().plans.add(p));
+                        if (tmpPlans.size > 0 && playerUnit() != null && playerUnit().plans.size == 0) {
+                            tmpPlans.each(p -> playerUnit().plans.add(p));
                             tmpPlans.clear();
                         }
                     };
@@ -615,8 +674,7 @@ public class ButtonsTable {
                     Tile tile = world.tile(spx, spy);
                     if (tile == null) return;
 
-                    Unit unit = Vars.player.unit();
-                    if (unit == null) return;
+                    if (playerUnit() == null) return;
 
                     control.input.selectPlans.each(bp -> {
                         if (bp.build() != null && bp.build().block == bp.block && bp.build().tileX() == bp.x && bp.build().tileY() == bp.y) {
@@ -642,9 +700,9 @@ public class ButtonsTable {
                                         if (breaks.contains(building)) continue;
                                         breaks.addUnique(building);
 
-                                        unit.plans.add(new BuildPlan(building.tileX(), building.tileY()));
+                                        playerUnit().plans.add(new BuildPlan(building.tileX(), building.tileY()));
                                     } else {
-                                        unit.plans.add(new BuildPlan(x, y));
+                                        playerUnit().plans.add(new BuildPlan(x, y));
                                     }
                                 }
                             }
@@ -725,6 +783,32 @@ public class ButtonsTable {
     int rowWidth = Mathf.floor(ShortcutsSchematicsTable.getTotalWidth() / size);
 
     public ButtonsTable(Table parents) {
+        SettingsMenuDialog.SettingsTable settingsTable = new SettingsMenuDialog.SettingsTable(){
+            final Cell empty = new Cell<>();
+
+            @Override
+            public void rebuild(){
+                clear();
+
+                for(Setting setting : list){
+                    setting.add(this);
+                }
+            }
+
+            @Override
+            public <T extends Element> Cell<T> add(T element) {
+                if(element.getClass() == TextButton.class){
+                    return empty;
+                }
+                return super.add(element);
+            }
+        };
+
+        Table table = new Table();
+
+        parents.add(table).marginLeft(18).marginRight(18).row();
+        parents.add(settingsTable).marginBottom(20f).marginLeft(18).row();
+
         for (int i = 0; i < functionButtons.length; i++) {
             FunctionButton button = functionButtons[i];
             button.checked = Core.settings.getBool("tools-functions-" + i) && button.saveable;
@@ -747,6 +831,17 @@ public class ButtonsTable {
                             if (function.hasSwitch()) {
                                 function.checked = !function.checked;
                                 Core.settings.put("tools-functions-" + j, function.checked);
+
+                                settingsTable.getSettings().clear();
+                                table.clear();
+                                table.marginTop(0).marginBottom(0);
+
+                                if(function.checked) {
+                                    function.buildSettings(settingsTable);
+                                    function.buildTable(table);
+                                }
+
+                                settingsTable.rebuild();
                             }
 
                         }).size(46).checked(b -> function.checked).margin(10).get();
@@ -776,6 +871,9 @@ public class ButtonsTable {
         });
     }
 
+    public static Unit playerUnit(){
+        return player.unit();
+    }
 
     public static class FunctionButton {
         public String description;
@@ -815,6 +913,12 @@ public class ButtonsTable {
 
         public boolean hasSwitch() {
             return checkOff != null || update != null;
+        }
+
+        public void buildSettings(SettingsMenuDialog.SettingsTable st){
+        }
+
+        public void buildTable(Table table){
         }
     }
 }

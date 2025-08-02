@@ -12,7 +12,7 @@ buildscript{
     }
 
     repositories{
-        if(!useJitpack) maven("https://maven.xpdustry.com/mindustry")
+        if(!useJitpack) maven("https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository")
         maven("https://jitpack.io")
     }
 }
@@ -29,9 +29,6 @@ val entVersion: String by project
 
 val modName: String by project
 val modArtifact: String by project
-val modFetch: String by project
-val modGenSrc: String by project
-val modGen: String by project
 
 val androidSdkVersion: String by project
 val androidBuildVersion: String by project
@@ -79,7 +76,7 @@ allprojects{
         maven("https://oss.sonatype.org/content/repositories/releases/")
         maven("https://raw.githubusercontent.com/GglLfr/EntityAnnoMaven/main")
 
-        if(!useJitpack) maven("https://maven.xpdustry.com/mindustry")
+        if(!useJitpack) maven("https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository")
         maven("https://jitpack.io")
     }
 

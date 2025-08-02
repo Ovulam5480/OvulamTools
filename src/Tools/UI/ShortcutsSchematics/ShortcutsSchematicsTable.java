@@ -1,6 +1,6 @@
 package Tools.UI.ShortcutsSchematics;
 
-import Tools.Tools;
+import Tools.OvulamTools;
 import arc.Core;
 import arc.Events;
 import arc.graphics.Color;
@@ -71,7 +71,7 @@ public class ShortcutsSchematicsTable {
 
         parents.add(schematicsAndCategoryTable);
 
-        Events.on(Tools.TableChangeEvent.class, e -> {
+        Events.on(OvulamTools.TableChangeEvent.class, e -> {
             rebuild();
             rebuildCat();
         });

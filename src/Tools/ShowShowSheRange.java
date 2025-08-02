@@ -24,7 +24,6 @@ import mindustry.entities.abilities.SuppressionFieldAbility;
 import mindustry.entities.bullet.BulletType;
 import mindustry.game.EventType;
 import mindustry.game.Team;
-import mindustry.gen.Building;
 import mindustry.gen.Groups;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -198,7 +197,7 @@ public class ShowShowSheRange {
 
                     if (show) {
                         int amount = PublicStaticVoids.completeDamage(unit.team, unit.x, unit.y, radius);
-                        float damage = Mathf.pow(unit.hitSize, 0.75f) * type.crashDamageMultiplier * 5f * state.rules.unitCrashDamage(unit.team);
+                        float damage = Mathf.pow(unit.hitSize, 0.75f) * type.crashDamageMultiplier * 2.5f * state.rules.unitCrashDamage(unit.team);
 
                         showValue(twoDig(damage) + (amount == 0 ? "" : ("*" + amount + "=" + twoDig(damage * amount))), Items.blastCompound.color, unit.x, unit.y + radius + 2);
                     }

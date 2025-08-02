@@ -1,13 +1,11 @@
 package Tools;
 
-import Tools.UI.ReadjustDialog;
 import Tools.UI.ToolsWindows;
 import Tools.UI.UpdaterTable;
-import Tools.copy.CopyPathfinder;
+import Tools.copy.ClientPathfinder;
 import arc.Core;
 import arc.Events;
 import arc.files.Fi;
-import arc.math.Mathf;
 import arc.scene.Group;
 import arc.scene.event.Touchable;
 import arc.scene.ui.layout.WidgetGroup;
@@ -18,7 +16,6 @@ import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
 import mindustry.entities.bullet.LaserBulletType;
-import mindustry.game.EventType;
 import mindustry.gen.Icon;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods;
@@ -26,8 +23,10 @@ import mindustry.ui.dialogs.SettingsMenuDialog;
 
 import static mindustry.Vars.*;
 
-public class Tools extends Mod{
-    public static CopyPathfinder copyPathfinder;
+public class OvulamTools extends Mod{
+    public static ClientPathfinder clientPathfinder;
+    public static PathSpawners pathSpawners;
+
     public static Group buttonGroup;
     public static ToolsWindows windows;
     public static TableChangeEvent tableChangeEvent = new TableChangeEvent();
@@ -78,7 +77,6 @@ public class Tools extends Mod{
                 else if(i == 0)return "不显示";
                 return i + "秒";
             });
-            st.sliderPref("自动挖矿阈值", 1000, 100, 3500, 100, i -> i + "");
             st.checkPref("蓝图物品需求计入核心", false);
             st.checkPref("保存设定的工具表的位置", true);
             st.checkPref("是否默认收起快捷蓝图表", false);
@@ -98,7 +96,7 @@ public class Tools extends Mod{
             Core.scene.add(buttonGroup);
 
             windows = new ToolsWindows(buttonGroup);
-            ReadjustDialog.applySettings();
+            //ReadjustDialog.applySettings();
 
             Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
             if(!fi.exists() || !fi.isDirectory()){
@@ -126,11 +124,10 @@ public class Tools extends Mod{
             }
         }
 
-        biabiabia();
     }
 
     public Mods.LoadedMod thisMod(){
-        return mods.getMod(Tools.class);
+        return mods.getMod(OvulamTools.class);
     }
 
     public static int compareVersions(String current, String lastest) {
@@ -162,23 +159,6 @@ public class Tools extends Mod{
         "不允许使用蓝图(库)跟我快捷蓝图表有什么关系"
     };
 
-    //秒做为单位
-    int changeTime = 60 * 60;
-    int index = Mathf.random(displayNames.length - 1);
 
-    public void biabiabia(){
-        Mods.LoadedMod mod = mods.getMod(this.getClass());
-
-        Events.run(EventType.Trigger.update, () -> {
-            if(Mathf.randomBoolean(1 / 60f / changeTime)) {
-                index = Mathf.random(displayNames.length - 1);
-                mod.meta.displayName = mod.meta.name + "   " + displayNames[index];
-            }
-
-            mod.meta.author = (Mathf.random(8999) + 1000) + "";
-        });
-    }
-
-    public static class TableChangeEvent{
-    }
+    public static class TableChangeEvent{}
 }

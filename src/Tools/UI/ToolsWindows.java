@@ -1,7 +1,7 @@
 package Tools.UI;
 
+import Tools.OvulamTools;
 import Tools.ResourcesCalculator;
-import Tools.Tools;
 import Tools.UI.ShortcutsSchematics.ShortcutsSchematicsTable;
 import arc.Core;
 import arc.Events;
@@ -29,7 +29,7 @@ public class ToolsWindows {
 
     ResourcesCalculator resourcesCalculator = new ResourcesCalculator();
     ShortcutsSchematicsTable schematicsTable;
-    public ReadjustDialog readjustDialog = new ReadjustDialog();
+    //public ReadjustDialog readjustDialog = new ReadjustDialog();
 
     private final Group parent;
 
@@ -133,7 +133,7 @@ public class ToolsWindows {
 
                 addOptionButton(optionTable, Icon.list, Mode.buttons);
                 addOptionButton(optionTable, Icon.zoom, Mode.ores);
-                optionTable.button(Icon.filters, Styles.clearNonei, () -> readjustDialog.show());
+                //optionTable.button(Icon.filters, Styles.clearNonei, () -> readjustDialog.show());
                 addOptionButton(optionTable, Icon.save, Mode.scripts);
 //                addOptionButton(optionTable, Icon.github, Mode.update).update(b -> {
 //                    b.setDisabled(!UpdaterTable.hasBuild);
@@ -166,7 +166,7 @@ public class ToolsWindows {
             }
         });
 
-        Events.on(Tools.TableChangeEvent.class, e -> {
+        Events.on(OvulamTools.TableChangeEvent.class, e -> {
             rebuild.run();
             empty.width(ShortcutsSchematicsTable.getTotalWidth());
         });

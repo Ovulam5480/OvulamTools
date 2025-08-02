@@ -1,6 +1,5 @@
 package Tools.UI;
 
-import Tools.Tools;
 import Tools.type.Consumer;
 import Tools.type.ItemFlow;
 import Tools.type.Producer;
