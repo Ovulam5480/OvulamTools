@@ -8,7 +8,7 @@ main: "Tools.OvulamTools"
 
 description: "用于显示子弹溅射范围或者单位坠落伤害半径的辅助模组(起码以前是)"
 
-version: 0.9.2
+version: 0.9.3
 
 minGameVersion: 150
 

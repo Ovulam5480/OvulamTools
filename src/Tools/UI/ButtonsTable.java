@@ -169,20 +169,24 @@ public class ButtonsTable {
                         if(checked)initSpawners();
                     });
 
-                    Events.on(ClientPathfinder.FinishedFrontier.class, e -> updateAllPathPoints());
+                    Events.on(ClientPathfinder.FinishedFrontier.class, e -> {
+                        if(checked)updateAllPathPoints();
+                    });
 
                     Events.on(EventType.TileChangeEvent.class, e -> {
-                        Time.run(2f, this::updateAllPathPoints);//updateAllPathPoints()
+                        if(checked){
+                            updateAllPathPoints();
 
-                        if (state.rules.randomWaveAI) {
-                            Arrays.fill(targets, null);
-                            for (int i = 0; i < randomTargets.length; i++) {
-                                BlockFlag target = randomTargets[i];
-                                var targets = indexer.getEnemy(state.rules.waveTeam, target);
-                                if (!targets.isEmpty()) {
-                                    for (Building other : targets) {
-                                        if ((other.items != null && other.items.any()) || other.status() != BlockStatus.noInput) {
-                                            this.targets[i] = other;
+                            if (state.rules.randomWaveAI) {
+                                Arrays.fill(targets, null);
+                                for (int i = 0; i < randomTargets.length; i++) {
+                                    BlockFlag target = randomTargets[i];
+                                    var targets = indexer.getEnemy(state.rules.waveTeam, target);
+                                    if (!targets.isEmpty()) {
+                                        for (Building other : targets) {
+                                            if ((other.items != null && other.items.any()) || other.status() != BlockStatus.noInput) {
+                                                this.targets[i] = other;
+                                            }
                                         }
                                     }
                                 }
