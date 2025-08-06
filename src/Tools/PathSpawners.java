@@ -167,7 +167,7 @@ public class PathSpawners {
 
         Building building = tile.build;
         if(building == null){
-            Vars.ui.showErrorMessage("图格: " + tile + " 不存在建筑出生点");
+            Vars.ui.showErrorMessage("Mod-OvulamTools: 图格--- " + tile + " 不存在建筑出生点");
             return null;
         }
 
