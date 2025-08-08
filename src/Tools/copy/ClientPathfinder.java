@@ -265,7 +265,7 @@ public class ClientPathfinder {
     }
 
     public void update() {
-        if (!enable || !state.isPlaying()) return;
+        if (!enable || !state.isPlaying() || !hasInit) return;
         addedFrontier = 0;
 
         for (Flowfield data : mainList) {
