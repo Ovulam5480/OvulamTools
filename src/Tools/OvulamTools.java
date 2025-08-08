@@ -80,10 +80,24 @@ public class OvulamTools extends Mod{
             st.checkPref("蓝图物品需求计入核心", false);
             st.checkPref("保存设定的工具表的位置", true);
             st.checkPref("是否默认收起快捷蓝图表", false);
-            //st.checkPref("重生或附身其他单位时保存建筑序列", true);
+            st.checkPref("是否下次重启加入飙车示例文件, 会自动关闭", true);
         });
 
         if(!Core.settings.getBool("禁用弹药范围显示, 重启生效"))new ShowShowSheRange();
+
+        if(Core.settings.getBool("是否下次重启加入飙车示例文件", true)){
+            Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
+            if(!fi.exists() || !fi.isDirectory()){
+                fi.file().mkdir();
+
+                Fi sl = thisMod().root.child("飙车示例.json");
+                if(!fi.child("飙车示例.json").exists() && sl.exists()){
+                    sl.copyTo(fi);
+                }
+            }
+            Core.settings.put("是否下次重启加入飙车示例文件", false);
+        }
+
         if(!Core.settings.getBool("禁用快捷蓝图表, 重启生效")){
             buttonGroup = new WidgetGroup();
             buttonGroup.setFillParent(true);
@@ -97,16 +111,6 @@ public class OvulamTools extends Mod{
 
             windows = new ToolsWindows(buttonGroup);
             //ReadjustDialog.applySettings();
-
-            Fi fi = Vars.dataDirectory.child("mods").child("SchematicAuxiliary");
-            if(!fi.exists() || !fi.isDirectory()){
-                fi.file().mkdir();
-
-                Fi sl = thisMod().root.child("飙车示例.json");
-                if(!fi.child("飙车示例.json").exists() && sl.exists()){
-                    sl.copyTo(fi);
-                }
-            }
 
             if(Core.settings.getBool("启用更新检查")) {
                 Http.get("https://api.github.com/repos/Ovulam5480/OvulamTools/releases/latest", res -> {
