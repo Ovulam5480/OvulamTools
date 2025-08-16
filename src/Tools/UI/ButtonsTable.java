@@ -630,8 +630,12 @@ public class ButtonsTable {
 
                 void drawPlaces(Seq<BuildPlan> plans) {
                     plans.each(bp -> {
-                        boolean valid = bp.block.canPlaceOn(world.tile(bp.x, bp.y), player.team(), bp.rotation);
-                        bp.block.drawPlace(bp.x, bp.y, bp.rotation, valid);
+                        Tile tile = world.tile(bp.x, bp.y);
+
+                        if(tile != null) {
+                            boolean valid = bp.block.canPlaceOn(tile, player.team(), bp.rotation);
+                            bp.block.drawPlace(bp.x, bp.y, bp.rotation, valid);
+                        }
                     });
                 }
 

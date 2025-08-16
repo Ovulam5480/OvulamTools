@@ -438,6 +438,8 @@ public class ClientPathfinder {
 
         while (path.frontier.size > 0) {
             int tile = path.frontier.removeLast();
+            if(tile > tiles.length)return;
+
             if (path.weights == null) return;
             int cost = path.weights[tile];
 
