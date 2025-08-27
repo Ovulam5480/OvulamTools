@@ -42,7 +42,7 @@ public class PathSpawners {
             }
         });
 
-        Events.on(EventType.BlockDestroyEvent.class, e -> {
+        Events.on(EventType.TilePreChangeEvent.class, e -> {
             if (!waves()) return;
 
             Building spawner = e.tile.build;
