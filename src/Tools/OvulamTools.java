@@ -1,7 +1,6 @@
 package Tools;
 
 import Tools.UI.ToolsWindows;
-import Tools.UI.UpdaterTable;
 import Tools.copy.ClientPathfinder;
 import arc.Core;
 import arc.Events;
@@ -9,9 +8,6 @@ import arc.files.Fi;
 import arc.scene.Group;
 import arc.scene.event.Touchable;
 import arc.scene.ui.layout.WidgetGroup;
-import arc.util.Http;
-import arc.util.Log;
-import arc.util.serialization.Jval;
 import mindustry.Vars;
 import mindustry.content.Planets;
 import mindustry.content.UnitTypes;
@@ -60,6 +56,10 @@ public class OvulamTools extends Mod{
                 Events.fire(tableChangeEvent);
                 return i + "行";
             });
+            st.sliderPref("快捷蓝图列数", 4, 4, 24, 1, i -> {
+                Events.fire(tableChangeEvent);
+                return i + "列";
+            });
             st.sliderPref("蓝图分类列数", 2, 1, 24, 1, i -> {
                 Events.fire(tableChangeEvent);
                 return i + "列";
@@ -77,6 +77,7 @@ public class OvulamTools extends Mod{
                 else if(i == 0)return "不显示";
                 return i + "秒";
             });
+            st.checkPref("蓝图表在禁用蓝图的地图中禁用", true);
             st.checkPref("蓝图物品需求计入核心", false);
             st.checkPref("保存设定的工具表的位置", true);
             st.checkPref("是否默认收起快捷蓝图表", false);
@@ -111,21 +112,6 @@ public class OvulamTools extends Mod{
 
             windows = new ToolsWindows(buttonGroup);
             //ReadjustDialog.applySettings();
-
-            if(Core.settings.getBool("启用更新检查")) {
-                Http.get("https://api.github.com/repos/Ovulam5480/OvulamTools/releases/latest", res -> {
-                    Jval json = Jval.read(res.getResultAsString());
-                    String tag = json.get("tag_name").asString();
-                    if (compareVersions(thisMod().meta.version, tag) == -1) {
-                        UpdaterTable.assets = json.get("assets").asArray();
-                        new UpdaterTable(windows.updaterTable);
-
-                        Log.info("工具箱有新版更新");
-                    } else {
-                        Log.info("当前工具箱已是最新版本");
-                    }
-                }, e -> Log.info("无法连接github查询版本情况"));
-            }
         }
 
     }

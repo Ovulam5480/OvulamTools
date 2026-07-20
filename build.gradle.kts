@@ -84,7 +84,6 @@ allprojects{
         // Use Java 17+ syntax, but target Java 8 bytecode version.
         sourceCompatibility = "17"
         options.apply{
-            release = 8
             compilerArgs.add("-Xlint:-options")
 
             isIncremental = true
@@ -218,5 +217,12 @@ project(":"){
 
         dependsOn("install")
         commandLine = listOf("cmd", "/c", "java", "-jar", gamePath)
+    }
+
+    tasks.register<Exec>("debug") {
+        group = "test in game"
+
+        dependsOn("install")
+        commandLine = listOf("cmd", "/c", "java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005", "-jar", gamePath)
     }
 }

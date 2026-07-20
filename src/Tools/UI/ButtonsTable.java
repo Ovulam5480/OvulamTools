@@ -20,11 +20,13 @@ import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Cell;
+import arc.scene.ui.layout.Scl;
 import arc.scene.ui.layout.Table;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.pooling.Pools;
 import mindustry.Vars;
+import mindustry.ai.types.CommandAI;
 import mindustry.content.*;
 import mindustry.core.GameState;
 import mindustry.core.World;
@@ -32,10 +34,8 @@ import mindustry.entities.units.BuildPlan;
 import mindustry.entities.units.WeaponMount;
 import mindustry.game.EventType;
 import mindustry.game.Team;
-import mindustry.gen.Building;
-import mindustry.gen.Call;
-import mindustry.gen.Icon;
-import mindustry.gen.Unit;
+import mindustry.game.Teams;
+import mindustry.gen.*;
 import mindustry.graphics.Drawf;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
@@ -373,6 +373,156 @@ public class ButtonsTable {
                 }
             },
 
+            new FunctionButton("PVP模式对方控兵警告", Icon.warning, () -> {}){
+                private final ObjectMap<Vec2, Seq<Unit>> commands = new ObjectMap<>();
+                public boolean regrouped = true;
+                public static final float iconSize = 8;
+                public boolean check = Core.settings.getBool("启用核心圆形范围检测");
+                public int checkRange = Core.settings.getInt("核心圆形范围检测半径", 50);
+                public Color warningColor = Color.valueOf(Core.settings.getString("警告线颜色", "#ff0000ff"));
+                {
+                    draw = () -> {
+                        if(!checked)return;
+                        
+                        Draw.z(Layer.fogOfWar + 4);
+                        commands.each((v, us) -> {
+                            us.removeAll(u -> !u.isAdded());
+                            if(us.isEmpty()){
+                                commands.remove(v);
+                                return;
+                            }
+                            if(us.size == 0)return;
+
+                            float mindst = Float.MAX_VALUE;
+                            CoreBlock.CoreBuild closest = null;
+                            boolean hasRangeCore = false;
+                            for(Teams.TeamData data : state.teams.active){
+                                for(CoreBlock.CoreBuild tile : data.cores){
+                                    float dst = tile.dst2(v);
+                                    if(dst < mindst){
+                                        closest = tile;
+                                        mindst = dst;
+                                    }
+
+                                    if(dst < Mathf.sqr(checkRange * 8) && tile.team == Vars.player.team()){
+                                        hasRangeCore = true;
+                                    }
+                                }
+                            }
+                            if (closest == null || closest.team != Vars.player.team() || (check && !hasRangeCore)) return;
+
+                            Vec2 center = Tmp.v1.setZero();
+                            us.each(u -> center.add(u.x, u.y));
+                            center.scl(1f / us.size);
+                            us.sort(u -> u.dst(center));
+                            float radius = us.peek().dst(center) + 8;
+                            if(!v.within(center, radius)) {
+                                Tmp.v2.setZero().trns(center.angleTo(v), radius);
+                                Drawf.line(warningColor, center.x + Tmp.v2.x, center.y + Tmp.v2.y, v.x, v.y);
+                            }
+                            Drawf.circles(center.x, center.y, radius);
+                            Drawf.line(warningColor, v.x, v.y, Vars.player.x, Vars.player.y);
+                            Draw.color(warningColor);
+                            Drawf.square(v.x, v.y, 12);
+
+                            ObjectIntMap<UnitType> types = new ObjectIntMap<>();
+                            us.each(u -> types.increment(u.type, 1));
+                            int size = types.size;
+                            for (ObjectIntMap.Entry<UnitType> type : types) {
+                                Tmp.v3.set(v.x, v.y).sub(Vars.player.x, Vars.player.y + size * iconSize + 4).setLength(64).add(Vars.player.x, Vars.player.y + size * iconSize + 4);
+                                float tx = Tmp.v3.x, ty = Tmp.v3.y;
+
+                                float w = drawPlaceText("*" + type.value, tx, ty, Color.white);
+                                TextureRegion icon = type.key.fullIcon;
+                                float scale = Math.min(iconSize / icon.width, iconSize / icon.height);
+                                Draw.rect(icon, tx - w / 2f - iconSize / 2f, ty + iconSize / 2f, icon.width * scale, icon.height * scale);
+
+                                size--;
+                            }
+                            Tmp.v3.set(v.x, v.y).sub(Vars.player.x, Vars.player.y + size * iconSize + 4).setLength(64).add(Vars.player.x, Vars.player.y + size * iconSize + 4);
+                            float tx = Tmp.v3.x, ty = Tmp.v3.y;
+
+                            drawPlaceText( String.format("%.1f", Vars.player.dst(v)/8) + "/" + String.format("%.1f", center.dst(v)/8), tx, ty, Color.white);
+                        });
+                    };
+
+                    Events.run(EventType.Trigger.unitCommandAttack, () -> regrouped = false);
+                    Events.run(EventType.Trigger.unitCommandPosition, () -> regrouped = false);
+                    Events.run(EventType.Trigger.update, () -> {
+                        if(regrouped)return;
+                        regrouped = true;
+                        regroup();
+                    });
+
+                    Events.on(EventType.ResetEvent.class, e -> {
+                        commands.clear();
+                    });
+                }
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.checkPref("启用核心圆形范围检测", check, b -> check = b);
+                    st.sliderPref("核心圆形范围检测半径", checkRange, 20, 200, 10, s -> {
+                        checkRange = s;
+                        return s + "格";
+                    });
+                    st.checkPref("设置警告线颜色", false, b -> {
+                        ui.picker.show(warningColor, c -> {
+                            warningColor = c;
+                            settings.put("warningColor", warningColor.toString());
+                        });
+                    });
+                }
+
+                public float drawPlaceText(String text, float x, float y, Color color){
+                    if(renderer.pixelate) return 0;
+
+                    Font font = Fonts.outline;
+                    GlyphLayout layout = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
+                    boolean ints = font.usesIntegerPositions();
+                    font.setUseIntegerPositions(false);
+                    font.getData().setScale(iconSize / 16f / 1.5f / Scl.scl(1f));
+                    layout.setText(font, text);
+
+                    float width = layout.width;
+
+                    font.setColor(color);
+                    font.draw(text, x, y + layout.height + 1, Align.center);
+                    font.setUseIntegerPositions(ints);
+                    font.setColor(Color.white);
+                    font.getData().setScale(1f);
+                    Draw.reset();
+                    Pools.free(layout);
+
+                    return width;
+                }
+
+                public void regroup(){
+                    if(!Vars.state.rules.pvp)return;
+                    commands.clear();
+                    Seq<Vec2> targets = new Seq<>();
+
+                    Groups.unit.each(u -> {
+                        if(u.team != Vars.player.team() &&
+                                u.controller() instanceof CommandAI c && c.targetPos != null){
+                            Vec2 key = targets.find(v -> v.equals(c.targetPos));
+                            if(key != null){
+                                if(commands.get(key).contains(u)){
+
+                                }else {
+                                    commands.get(key).add(u);
+                                }
+                            }else {
+                                Vec2 v = new Vec2(c.targetPos);
+                                targets.add(v);
+                                commands.put(v, new Seq<>());
+                                commands.get(v).add(u);
+                            }
+                        }
+                    });
+                }
+            },
+
             new FunctionButton("拆除地图上所有的石头", Icon.spray, () -> {
                 Unit unit = playerUnit();
                 if (unit == null) return;
@@ -651,6 +801,12 @@ public class ButtonsTable {
             new FunctionButton("放置蓝图或者建筑时, 拆除建造列表下方阻挡的建筑", Icon.layers) {
                 final Seq<BuildPlan> tmpPlans = new Seq<>();
                 final Seq<Building> breaks = new Seq<>();
+                boolean hiddenShadow = settings.getBool("隐藏建造幻影");
+
+                @Override
+                public void buildSettings(SettingsMenuDialog.SettingsTable st) {
+                    st.checkPref("隐藏建造幻影", hiddenShadow, b -> hiddenShadow = b);
+                }
 
                 @Override
                 public void init() {
@@ -675,7 +831,10 @@ public class ButtonsTable {
                         }
                     };
 
-                    draw = () -> tmpPlans.each(bp -> bp.block.drawPlan(bp, tmpPlans, true, (Mathf.sinDeg(Time.time * 15) + 3) / 4f));
+                    draw = () -> {
+                        if(!hiddenShadow)tmpPlans.each(bp -> bp.block.drawPlan(bp, tmpPlans, true, (Mathf.sinDeg(Time.time * 15) + 3) / 4f));
+                    };
+
                 }
 
                 public void coverPlace(int spx, int spy) {

@@ -4,6 +4,7 @@ import arc.Events;
 import arc.func.Cons2;import arc.math.Mathf;
 import arc.math.geom.Geometry;
 import arc.struct.IntIntMap;
+import arc.struct.IntSeq;
 import arc.util.Tmp;
 import mindustry.Vars;
 import mindustry.content.Blocks;
@@ -30,6 +31,8 @@ public class PathSpawners {
     private static final float maxSteps = 30;
     private static boolean any = false;
 
+    public IntSeq removes = new IntSeq();
+
     public PathSpawners() {
         Events.on(EventType.UnitCreateEvent.class, e -> {
             if (!waves()) return;
@@ -55,7 +58,10 @@ public class PathSpawners {
     public void eachSpawnerTiles(Cons2<Tile, Integer> get){
         spawners.forEach(e -> {
             Tile tile = getSpawnerTile(e.key);
-            if(tile == null)return;
+            if(tile == null){
+                removes.add(e.key);
+                return;
+            }
 
             int pathType = e.value;
             for (int i = 0; i < 6; i++){
@@ -64,6 +70,13 @@ public class PathSpawners {
                 }
             }
         });
+
+        if(!removes.isEmpty()){
+            for (int i = 0; i < removes.size; i++){
+                spawners.remove(removes.get(i));
+            }
+            removes.clear();
+        }
     }
 
     public void init() {
@@ -167,7 +180,7 @@ public class PathSpawners {
 
         Building building = tile.build;
         if(building == null){
-            Vars.ui.showErrorMessage("Mod-OvulamTools: 图格--- " + tile + " 不存在建筑出生点");
+            //Vars.ui.showErrorMessage("Mod-OvulamTools: 图格--- " + tile + " 不存在建筑出生点");
             return null;
         }
 

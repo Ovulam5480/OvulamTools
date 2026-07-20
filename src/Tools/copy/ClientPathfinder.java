@@ -102,7 +102,7 @@ public class ClientPathfinder {
 
         Font f = Fonts.outline;
         Events.run(EventType.Trigger.draw, () -> {
-            if (!enable) return;
+            if (!this.enable) return;
 
             Flowfield path = OvulamTools.clientPathfinder.getField(drawValueType);
             int[] values = path.hasComplete ? path.completeWeights : path.weights;

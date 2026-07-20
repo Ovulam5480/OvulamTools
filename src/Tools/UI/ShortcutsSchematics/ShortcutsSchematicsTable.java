@@ -15,12 +15,14 @@ import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Cell;
 import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
+import arc.util.Log;
 import arc.util.Scaling;
 import arc.util.Time;
 import mindustry.Vars;
 import mindustry.core.UI;
 import mindustry.ctype.Content;
 import mindustry.ctype.UnlockableContent;
+import mindustry.game.EventType;
 import mindustry.game.Schematic;
 import mindustry.game.Schematics;
 import mindustry.gen.Building;
@@ -47,6 +49,8 @@ public class ShortcutsSchematicsTable {
     TextureRegionDrawable hoveredIcons;
     Image image;
 
+    boolean changed = false;
+
     public ShortcutsSchematicsTable(Table parents) {
         buildTop(parents);
 
@@ -69,11 +73,18 @@ public class ShortcutsSchematicsTable {
             
         }).margin(10).growY();
 
+        Events.run(EventType.Trigger.update, () -> {
+            changed = false;
+        });
+
         parents.add(schematicsAndCategoryTable);
 
         Events.on(OvulamTools.TableChangeEvent.class, e -> {
-            rebuild();
-            rebuildCat();
+            if(!changed) {
+                rebuild();
+                rebuildCat();
+                changed = true;
+            }
         });
 
         Events.on(SchematicsSelectDialog.SchematicsSelectEvent.class, e -> {
@@ -161,12 +172,13 @@ public class ShortcutsSchematicsTable {
                     }else {
                         control.input.useSchematic(schematic);
                     }
-                }).size(46).group(group).name(schematic.name()).get();
+                }).size(46).group(group).disabled(dwadaw -> !state.rules.schematicsAllowed && Core.settings.getBool("蓝图表在禁用蓝图的地图中禁用", true)).name(schematic.name()).get();
 
                 button.update(() -> {
                     Building core = player.core();
 
-                    Color color = (state.rules.infiniteResources || (core != null && (core.items.has(getRequirements(schematic), state.rules.buildCostMultiplier) || state.rules.infiniteResources))) && player.isBuilder() ? Color.white : Color.gray;
+                    Color color = !state.rules.schematicsAllowed && Core.settings.getBool("蓝图表在禁用蓝图的地图中禁用", true) ? Color.darkGray :
+                            (state.rules.infiniteResources || (core != null && (core.items.has(getRequirements(schematic), state.rules.buildCostMultiplier) || state.rules.infiniteResources))) && player.isBuilder() ? Color.white : Color.gray;
                     button.forEach(elem -> elem.setColor(color));
 
                     if (syncMode || clearMode) button.setChecked(false);
@@ -283,15 +295,15 @@ public class ShortcutsSchematicsTable {
     }
 
     public static int getRowHeight() {
-        return Core.settings.getInt("快捷蓝图与蓝图分类行数");
+        return Core.settings.getInt("快捷蓝图与蓝图分类行数", 5);
     }
 
     public static int getRowWidth() {
-        return Core.settings.getInt("快捷蓝图列数");
+        return Core.settings.getInt("快捷蓝图列数", 2);
     }
 
     public static int getCatWidth() {
-        return Core.settings.getInt("蓝图分类列数");
+        return Core.settings.getInt("蓝图分类列数", 4);
     }
 
     public ItemStack[] getRequirements(Schematic schematic) {
@@ -313,5 +325,22 @@ public class ShortcutsSchematicsTable {
 
     public void setHovered(Schematic hovered) {
         this.hovered = hovered;
+    }
+
+    public void writeConfig(int index){
+        int rowWidth = getRowWidth();
+        int rowHeight = getRowHeight();
+
+        for(int i = 0; i < rowWidth * rowHeight; i++){
+            String schematicCode = Core.settings.getString("SchematicsFragment" + "-" + currentCategory + "-" + i, null);
+            String[] parts = schematicCode.split("_");
+            if(parts.length <= 1){
+                String s = parts[0];
+                parts = Seq.with(s, "").toArray();
+            }
+
+            String name = parts[1];
+        }
+
     }
 }
